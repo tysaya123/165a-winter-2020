@@ -29,6 +29,10 @@ class Table:
         self.index = index
         self.bufferpool = bufferpool
 
+        # A reference to the current base pages and the tail page
+        self.base_pages = [None] * num_columns
+        self.tail_page = None
+
     def __merge(self):
         pass
 
@@ -36,6 +40,16 @@ class Table:
         # TODO: Check if record already exists
         rid = rid_counter
         rid_counter += 1
+
+        for base_page in base_pages:
+            if not base_page.has_capacity():
+                # Allocate another base page
+                # Update references to this new page
+
+            # Write to the base page
+            base_page.write(rid, columns)
+
+        # Update page, indirection, index directories
 
 
     def select(self, key, query_columns):
@@ -52,7 +66,23 @@ class Table:
 
 
     def delete(self, key):
-        pass
+        rid = index.get(key)
+        pids = page_directory[rid]
+
+        # TODO: Rest of delete
 
     def update(self, key, *columns):
- 
+        values = self.select(key, *columns)
+
+        rid = index.get(key)
+        pids = page_directory[rid]
+
+        for pid in pids:
+            page = bufferpool.get(pid)
+            # Write dirty bit to page
+            # page.write(/* */)
+
+        if not tail_page.has_capacity():
+            # Allocate new tail page, update references
+
+        # Write to tail page
