@@ -103,14 +103,14 @@ class Table:
             if page.get_dirty(rid):
                 has_dirty_bit = True
                 break
-            vals.append(page.read(rid)[1])
+            vals.append(page.read(rid)[0])
 
         # If record has a dirty bit, pull the tail page, and get the values
         # from there. If not, then pull the values from the base pages.
         if has_dirty_bit:
             # TODO: Check whether this actually gets proper values or not.
             tail_page = self.bufferpool.get(self.rid_directory[self.indirection[rid]])
-            vals = tail_page.read(rid)[1]
+            vals = tail_page.read(rid)
 
         return vals
 
