@@ -58,6 +58,15 @@ class TestTableMethods(TestCase):
         vals = self.table.select(10, None)
         self.assertEqual([10,20,30], vals)
 
+    def testInsert2(self):
+        self.table.insert(10,20,30)
+        self.table.insert(15,25,35)
+        vals1 = self.table.select(10, None)
+        vals2 = self.table.select(15, None)
+
+        self.assertEqual([10,20,30], vals1)
+        self.assertEqual([15,25,35], vals2)
+
 
 if __name__ == '__main__':
     unittest.main()
