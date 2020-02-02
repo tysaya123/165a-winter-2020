@@ -1,7 +1,7 @@
 import logging
 import struct
 
-from config import *
+from src.config import *
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -31,7 +31,7 @@ class Page:
         if rid not in self.records: return None
         return self.records[rid]
 
-    def mark_record_deleted(self, rid):
+    def delete_record(self, rid):
         return self.records.pop(rid, NULL_RID)
 
     def pack(self):

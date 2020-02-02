@@ -7,6 +7,7 @@ from page import BasePage
 
 import pdb
 
+
 class Record:
 
     def __init__(self, rid, key, columns):
@@ -14,14 +15,15 @@ class Record:
         self.key = key
         self.columns = columns
 
-class Table:
 
+class Table:
     """
     :param name: string             #Table name
     :param num_columns: int         #Number of Columns: all columns are integer
     :param key: int                 #Index of table key in columns
     :param bufferpool: BufferPool   #Reference to the global bufferpool
     """
+
     def __init__(self, name, num_columns, key_index, bufferpool):
         self.name = name
         self.key_index = key_index
@@ -85,9 +87,10 @@ class Table:
         self.index[columns[0]] = rid
         self.rid_directory[rid] = rids
 
-
     def select(self, key, query_columns):
-        rid = self.index[key]
+        rid = self.index.get(key)
+        if rid is None:
+            return None
         pids = self.rid_directory[rid]
 
         # Result of the select
@@ -114,10 +117,34 @@ class Table:
 
         return vals
 
-
     def delete(self, key):
-        rid = self.index.get(key)
-        pids = rid_directory[rid]
+        base_rid = self.index.get(key)
+        self.index.delete(key)
+        pids = self.rid_directory[base_rid]
+
+        # Mark all base records as deleted
+        for pid in pids:
+            curr_page = self.bufferpool.get(pid)
+            curr_page.delete_record(base_rid)
+
+        # Loop through the cycle of records
+        curr_rid = base_rid
+        while True:
+            # Get the next rid and break if we are back at the start
+            next_rid = self.indirection[curr_rid]
+            #   Delete the indirection after using it
+            self.indirection.pop(curr_rid)
+            if next_rid == base_rid:
+                break
+            curr_rid = next_rid
+
+            # Get the page of tail record
+            curr_pid = self.rid_directory[curr_rid]
+            curr_page = self.bufferpool.get(curr_pid)
+
+            curr_page.delete_record(curr_rid)
+
+
 
         # TODO: Rest of delete
 

@@ -78,8 +78,19 @@ class TestTableMethods(TestCase):
         self.assertEqual([10,20,30], vals1)
         self.assertEqual([15,25,35], vals2)
 
+    def testDelete(self):
+        self.table.insert(1,2,3)
+        self.table.insert(15,25,35)
+
+        self.table.update(1, 5, 3, 4)
+
+        self.table.delete(5)
+
+        self.assertEquals(None, self.table.select[1])
+        self.assertEquals(None, self.table.select[5])
+
     def testLot(self):
-        NUM_RECORDS = 400
+        NUM_RECORDS = 10000
         for i in range(NUM_RECORDS):
             self.table.insert(i, i * 2, i * 3)
 
