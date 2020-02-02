@@ -11,5 +11,11 @@ class BufferPool:
         self.pid_counter += 1
         return self.pid_counter - 1
 
+    def new_tail_page(self, num_cols):
+        tail_page = TailPage(num_cols)
+        self.page_directory[self.pid_counter] = tail_page
+        self.pid_counter += 1
+        return self.pid_counter - 1
+
     def get(self, pid):
         return self.page_directory[pid]
