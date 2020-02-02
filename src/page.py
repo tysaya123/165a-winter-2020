@@ -72,6 +72,11 @@ class BasePage(Page):
         record_data = struct.pack(self.record_format, rid, value, dirty)
         self.append(record_data)
 
+    def get_dirty(self, rid):
+        record = self.read(rid)
+        if record is None: return record
+        return record[2]
+
     def set_dirty(self, rid, dirty):
         dirty = struct.pack(ENDIAN_FORMAT + SCHEMA_FORMAT, dirty)
         self.update(rid, dirty, RID_SIZE + VALUE_SIZE, SCHEMA_SIZE)
