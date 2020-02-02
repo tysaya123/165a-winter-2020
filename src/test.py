@@ -107,6 +107,18 @@ class TestTableMethods(TestCase):
             vals = self.table.select(i + NUM_RECORDS, None)
             self.assertEqual([i + NUM_RECORDS, i*20, i*30], vals)
 
+    def testKeyColumn(self):
+        bufferpool = BufferPool()
+        table = Table('test', 3, 1, self.bufferpool)
+        table.insert(2, 1, 3)
+        table.insert(2, 2, 12)
+
+        vals1 = table.select(1, None)
+        vals2 = table.select(2, None)
+
+        self.assertEqual([2,1,3], vals1)
+        self.assertEqual([2,2,12], vals2)
+
 
 if __name__ == '__main__':
     unittest.main()
