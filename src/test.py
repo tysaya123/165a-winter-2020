@@ -5,6 +5,8 @@ from random import randrange
 
 
 from page import BasePage, TailPage
+from table import Table
+from bufferpool import BufferPool
 from config import *
 
 
@@ -45,6 +47,16 @@ class TestPageMethods(TestCase):
             self.assertEqual(True, self.tail_page.has_capacity())
             self.tail_page.new_record(randrange(self.max_rid+1), 5*[randrange(self.min_int, self.max_int+1)])
         self.assertEqual(False, self.tail_page.has_capacity())
+
+class TestTableMethods(TestCase):
+    def setUp(self):
+        self.bufferpool = BufferPool()
+        self.table = Table('test', 3, 0, self.bufferpool)
+
+    def testInsert1(self):
+        self.table.insert(10,20,30)
+        vals = self.table.select(10, None)
+        self.assertEqual([10,20,30], vals)
 
 
 if __name__ == '__main__':

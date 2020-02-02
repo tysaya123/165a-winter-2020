@@ -9,7 +9,7 @@ class BufferPool:
         page = BasePage()
         self.page_directory[self.pid_counter] = page
         self.pid_counter += 1
-        return pid_counter - 1
+        return self.pid_counter - 1
 
     def get(self, pid):
         return self.page_directory[pid]
