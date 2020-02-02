@@ -92,17 +92,20 @@ class Table:
         has_dirty_bit = False
         for pid in pids:
             page = self.bufferpool.get(pid)
-            # TODO: Implement checking of dirty bit
-            #if page.has_dirty():
-            #    has_dirty_bit = True
-            #    break
+
+            # Check the record to see if the dirty bit is 1.
+            # TODO: Throw this back in
+            if page.get_dirty(rid):
+                has_dirty_bit = True
+                break
             vals.append(page.read(rid)[1])
 
         # If record has a dirty bit, pull the tail page, and get the values
         # from there. If not, then pull the values from the base pages.
         if has_dirty_bit:
-            tail_page = rid_directory[indirection[rid]]
-            vals = tail_page.read(rid)
+            # TODO: Check whether this actually gets proper values or not.
+            tail_page = self.bufferpool.get(self.rid_directory[self.indirection[rid]])
+            vals = tail_page.read(rid)[1]
 
         return vals
 
