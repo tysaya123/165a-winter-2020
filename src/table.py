@@ -100,14 +100,17 @@ class Table:
         # First, check to see if any of the columns have the dirty bit set
         # for this particular record.
         has_dirty_bit = False
-        for pid in pids:
+        for queried, pid in zip(query_columns, pids):
+            if not queried:
+                vals.append(None)
+                continue
             page = self.bufferpool.get(pid)
 
             # Check the record to see if the dirty bit is 1.
             if page.get_dirty(rid):
                 has_dirty_bit = True
                 break
-            vals.append(page.read(rid)[0])
+            vals.append(page.read(rid)[self.key_index])
 
         # If record has a dirty bit, pull the tail page, and get the values
         # from there. If not, then pull the values from the base pages.
@@ -121,7 +124,7 @@ class Table:
 
     def delete(self, key):
         base_rid = self.index.get(key)
-        self.index.delete(key)
+        del (self.index[key])
         pids = self.rid_directory[base_rid]
 
         # Mark all base records as deleted
@@ -146,13 +149,12 @@ class Table:
 
             curr_page.delete_record(curr_rid)
 
-
-
         # TODO: Rest of delete
 
     def update(self, key, *columns):
         # TODO: Make sure that right columns are selected
-        values = self.select(key, None)
+        to_select = [1 if x is None else 0 for x in columns]
+        values = self.select(key, to_select)
 
         rid = self.index[key]
         pids = self.rid_directory[rid]
@@ -175,9 +177,10 @@ class Table:
         tail_rid = self.new_rid()
         tail_page.new_record(tail_rid, columns)
 
-        # TODO: Delete old key in index
-        # TODO: Optionally update key, if the key is changed
-        self.index[columns[self.key_index]] = rid
+        # Delete old key in index
+        if columns[self.key_index] is not None:
+            self.index[columns[self.key_index]] = rid
+            del (self.index[key])
 
         # Update references for the indirection column, and rid_directory.
         self.indirection[tail_rid] = self.indirection[rid]
