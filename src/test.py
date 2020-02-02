@@ -4,8 +4,7 @@ from unittest import TestCase
 from random import randrange
 
 
-from page import BasePage, TailPage
-from config import *
+from src.page import BasePage, TailPage
 
 
 class TestPageMethods(TestCase):
