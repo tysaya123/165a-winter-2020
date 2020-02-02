@@ -158,4 +158,11 @@ class Table:
         self.rid_directory[tail_rid] = self.tail_page_pid
 
     def sum(self, start_range, end_range, aggregate_column):
-        pass
+        result = 0
+
+        for i in range(start_range, end_range + 1):
+            vals = self.select(i, None)
+            if vals not None:
+                result += vals[aggregate_column]
+
+        return result
