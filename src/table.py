@@ -95,7 +95,7 @@ class Table:
 
             # Check the record to see if the dirty bit is 1.
             # TODO: Throw this back in
-            if False:#page.get_dirty(rid):
+            if page.get_dirty(rid):
                 has_dirty_bit = True
                 break
             vals.append(page.read(rid)[1])
