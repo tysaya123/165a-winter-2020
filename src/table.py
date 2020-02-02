@@ -100,10 +100,7 @@ class Table:
         # First, check to see if any of the columns have the dirty bit set
         # for this particular record.
         has_dirty_bit = False
-        for queried, pid in zip(query_columns, pids):
-            if not queried:
-                vals.append(None)
-                continue
+        for pid in pids:
             page = self.bufferpool.get(pid)
 
             # Check the record to see if the dirty bit is 1.
@@ -124,6 +121,9 @@ class Table:
 
     def delete(self, key):
         base_rid = self.index.get(key)
+        if base_rid is None:
+            return
+
         del (self.index[key])
         pids = self.rid_directory[base_rid]
 
@@ -153,11 +153,21 @@ class Table:
 
     def update(self, key, *columns):
         # TODO: Make sure that right columns are selected
+        rid = self.index.get(key)
+        if rid is None:
+            return
+        pids = self.rid_directory[rid]
+
         to_select = [1 if x is None else 0 for x in columns]
         values = self.select(key, to_select)
 
-        rid = self.index[key]
-        pids = self.rid_directory[rid]
+        result = []
+        for i in range(self.num_columns):
+            if columns[i] is not None:
+                result.append(columns[i])
+            else:
+                result.append(values[i])
+
 
         # Set the dirty bits to 1 for the entire record.
         # TODO: Set the dirty bits only to the columns we're changing.
@@ -175,7 +185,7 @@ class Table:
 
         # Create new record in tail page.
         tail_rid = self.new_rid()
-        tail_page.new_record(tail_rid, columns)
+        tail_page.new_record(tail_rid, result)
 
         # Delete old key in index
         if columns[self.key_index] is not None:
@@ -191,7 +201,8 @@ class Table:
         result = 0
 
         for i in range(start_range, end_range + 1):
-            vals = self.select(i, None)
+            compr = [1 if x == aggregate_column else 0 for x in range(self.num_columns)]
+            vals = self.select(i, compr)
             if vals is not None:
                 result += vals[aggregate_column]
 

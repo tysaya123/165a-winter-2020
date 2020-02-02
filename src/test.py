@@ -130,6 +130,17 @@ class TestTableMethods(TestCase):
         self.assertEqual([2,1,3], vals1)
         self.assertEqual([2,2,12], vals2)
 
+    def testSum(self):
+        self.table.insert(1, 2, 3)
+        self.table.insert(2, 2, 3)
+        self.table.insert(3, 2, 4)
+
+        self.table.update(3, 4, 4, 4)
+
+        val = self.table.sum(1, 4, 1)
+
+        self.assertEqual(val, 8)
+
 
 if __name__ == '__main__':
     unittest.main()
