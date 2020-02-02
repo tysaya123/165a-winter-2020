@@ -11,6 +11,8 @@ RID_SIZE = 4
 VALUE_SIZE = 8
 SCHEMA_SIZE = 1
 
+NULL_RID = 0
+
 
 class SchemaEncoding(Enum):
     CLEAN = 0

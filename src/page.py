@@ -1,7 +1,7 @@
 import logging
 import struct
 
-from config import *
+from src.config import *
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -33,8 +33,10 @@ class Page:
         return None
 
     def append(self, data):
+        if not self.has_capacity(): return 0
         self.set_record(self.num_records, data)
         self.num_records += 1
+        return 1
 
     def update(self, rid, data, offset=0, length=0):
         if length == 0: length = self.record_size
@@ -43,7 +45,11 @@ class Page:
             curr_record = self.get_record(i)
             if curr_record[0] == rid:
                 self.data[i * self.record_size + offset:i * self.record_size + offset + length] = data
-        return None
+                return 1
+        return 0
+
+    def mark_record_deleted(self, rid):
+        return self.update(rid, struct.pack(ENDIAN_FORMAT + RID_FORMAT, 0), 0, RID_SIZE)
 
     def get_record(self, i):
         return struct.unpack(self.record_format,
@@ -61,10 +67,15 @@ class BasePage(Page):
         self.max_records = int(PAGE_SIZE / self.record_size)
 
     def new_record(self, rid, value, dirty):
-        logging.debug(str(self.num_records) + "/" + str(self.max_records))
+        # logging.debug(str(self.num_records) + "/" + str(self.max_records))
         # logging.debug(self.record_format + ":" + str(rid) + ":" + str(value) + ":" + str(dirty))
         record_data = struct.pack(self.record_format, rid, value, dirty)
         self.append(record_data)
+
+    def get_dirty(self, rid):
+        record = self.read(rid)
+        if record is None: return record
+        return record[2]
 
     def set_dirty(self, rid, dirty):
         dirty = struct.pack(ENDIAN_FORMAT + SCHEMA_FORMAT, dirty)
