@@ -37,27 +37,33 @@ class Table:
         self.indirection = {}
 
         # A reference to the current base pages and the tail page, stores pids
-        self.base_pages = [None] * num_columns
-        self.tail_page = None
+        self.base_page_pids = [None] * num_columns
+        self.tail_page_pid = None
 
         self.rid_counter = 1
 
+        # Initialize the tail page
+        self.tail_page = bufferpool.new_tail_page(self.num_columns)
+
         # Initialize base pages
         for i in range(self.num_columns):
-            self.base_pages[i] = bufferpool.new_base_page()
+            self.base_page_pids[i] = bufferpool.new_base_page()
 
     def __merge(self):
         pass
 
+    def new_rid(self):
+        self.rid_counter += 1
+        return self.rid_counter - 1
+
     def insert(self, *columns):
         # TODO: Check if record already exists
-        rid = self.rid_counter
-        self.rid_counter += 1
+        rid = self.new_rid()
 
         self.rid_directory[rid] = [None] * self.num_columns
         rids = []
 
-        for index, base_page in enumerate(self.base_pages):
+        for i, base_page in enumerate(self.base_page_pids):
 
             page = self.bufferpool.get(base_page)
 
@@ -65,12 +71,12 @@ class Table:
             # new page, and update references to it.
             if not page.has_capacity():
                 new_pid = self.bufferpool.new_base_page()
-                self.base_pages[index] = new_pid
+                self.base_page_pids[i] = new_pid
 
             # Write to the base page
-            page_id = self.base_pages[index]
+            page_id = self.base_page_pids[i]
             base_page = self.bufferpool.get(page_id)
-            base_page.new_record(rid, columns[index], 0)
+            base_page.new_record(rid, columns[i], 0)
 
             # Create reference from the record id to the page for it
             rids.append(page_id)
@@ -94,7 +100,6 @@ class Table:
             page = self.bufferpool.get(pid)
 
             # Check the record to see if the dirty bit is 1.
-            # TODO: Throw this back in
             if page.get_dirty(rid):
                 has_dirty_bit = True
                 break
@@ -111,24 +116,41 @@ class Table:
 
 
     def delete(self, key):
-        rid = index.get(key)
+        rid = self.index.get(key)
         pids = rid_directory[rid]
 
         # TODO: Rest of delete
 
     def update(self, key, *columns):
-        values = self.select(key, *columns)
+        # TODO: Make sure that right columns are selected
+        values = self.select(key, None)
 
-        rid = index.get(key)
-        pids = rid_directory[rid]
+        rid = self.index[key]
+        pids = self.rid_directory[rid]
 
+        # Set the dirty bits to 1 for the entire record.
+        # TODO: Set the dirty bits only to the columns we're changing.
         for pid in pids:
-            page = bufferpool.get(pid)
-            # Write dirty bit to page
-            # page.write(/* */)
+            page = self.bufferpool.get(pid)
+            page.set_dirty(rid, 1)
 
+        tail_page = self.bufferpool.get(self.tail_page_pid)
+
+        # Allocate new tail page, update references
         if not tail_page.has_capacity():
-            pass
-            # Allocate new tail page, update references
+            new_pid = self.bufferpool.new_tail_page(self.num_columns)
+            self.tail_page_pid = new_pid
+            tail_page = self.bufferpool.get(new_pid)
 
-        # Write to tail page
+        # Create new record in tail page.
+        tail_rid = self.new_rid()
+        tail_page.new_record(tail_rid, columns)
+
+        # TODO: Delete old key in index
+        # TODO: Optionally update key, if the key is changed
+        self.index[columns[0]] = rid
+
+        # Update references for the indirection column, and rid_directory.
+        self.indirection[tail_rid] = self.indirection[rid]
+        self.indirection[rid] = tail_rid
+        self.rid_directory[tail_rid] = new_pid

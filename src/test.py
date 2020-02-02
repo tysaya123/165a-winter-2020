@@ -78,6 +78,21 @@ class TestTableMethods(TestCase):
         self.assertEqual([10,20,30], vals1)
         self.assertEqual([15,25,35], vals2)
 
+    def testLot(self):
+        NUM_RECORDS = 400
+        for i in range(NUM_RECORDS):
+            self.table.insert(i, i * 2, i * 3)
+
+        for i in range(NUM_RECORDS):
+            vals = self.table.select(i, None)
+            self.assertEqual([i, i * 2, i * 3], vals)
+
+    def testUpdate(self):
+        self.table.insert(1, 2, 3)
+        self.table.update(1, 5, 3, 4)
+        vals = self.table.select(5, None)
+        self.assertEqual([5, 3, 4], vals)
+
 
 if __name__ == '__main__':
     unittest.main()
