@@ -189,7 +189,7 @@ class Table:
 
         for i in range(start_range, end_range + 1):
             vals = self.select(i, None)
-            if vals not None:
+            if vals is not None:
                 result += vals[aggregate_column]
 
         return result
