@@ -51,12 +51,12 @@ class Table:
         for i in range(self.num_columns):
             self.base_page_pids[i] = bufferpool.new_base_page()
 
-    def __merge(self):
-        pass
-
     def new_rid(self):
         self.rid_counter += 1
         return self.rid_counter - 1
+
+    def __merge(self):
+        pass
 
     def insert(self, *columns):
         # TODO: Check if record already exists
@@ -84,7 +84,7 @@ class Table:
             rids.append(page_id)
 
         # Update page, rid_directory, indirection, index directories
-        self.index[columns[0]] = rid
+        self.index[columns[self.key_index]] = rid
         self.rid_directory[rid] = rids
         self.indirection[rid] = rid
 
@@ -177,9 +177,12 @@ class Table:
 
         # TODO: Delete old key in index
         # TODO: Optionally update key, if the key is changed
-        self.index[columns[0]] = rid
+        self.index[columns[self.key_index]] = rid
 
         # Update references for the indirection column, and rid_directory.
         self.indirection[tail_rid] = self.indirection[rid]
         self.indirection[rid] = tail_rid
         self.rid_directory[tail_rid] = self.tail_page_pid
+
+    def sum(self, start_range, end_range, aggregate_column):
+        pass
