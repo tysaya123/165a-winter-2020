@@ -7,6 +7,7 @@ from page import BasePage
 
 import pdb
 
+
 class Record:
 
     def __init__(self, rid, key, columns):
@@ -14,14 +15,15 @@ class Record:
         self.key = key
         self.columns = columns
 
-class Table:
 
+class Table:
     """
     :param name: string             #Table name
     :param num_columns: int         #Number of Columns: all columns are integer
     :param key: int                 #Index of table key in columns
     :param bufferpool: BufferPool   #Reference to the global bufferpool
     """
+
     def __init__(self, name, num_columns, key_index, bufferpool):
         self.name = name
         self.key_index = key_index
@@ -86,9 +88,10 @@ class Table:
         self.rid_directory[rid] = rids
         self.indirection[rid] = rid
 
-
     def select(self, key, query_columns):
-        rid = self.index[key]
+        rid = self.index.get(key)
+        if rid is None:
+            return None
         pids = self.rid_directory[rid]
 
         # Result of the select
@@ -116,19 +119,55 @@ class Table:
 
         return vals
 
-
     def delete(self, key):
-        rid = self.index.get(key)
-        pids = rid_directory[rid]
+        base_rid = self.index.get(key)
+        if base_rid is None:
+            return
+
+        del (self.index[key])
+        pids = self.rid_directory[base_rid]
+
+        # Mark all base records as deleted
+        for pid in pids:
+            curr_page = self.bufferpool.get(pid)
+            curr_page.delete_record(base_rid)
+
+        # Loop through the cycle of records
+        curr_rid = base_rid
+        while True:
+            # Get the next rid and break if we are back at the start
+            next_rid = self.indirection[curr_rid]
+            #   Delete the indirection after using it
+            self.indirection.pop(curr_rid)
+            if next_rid == base_rid:
+                break
+            curr_rid = next_rid
+
+            # Get the page of tail record
+            curr_pid = self.rid_directory[curr_rid]
+            curr_page = self.bufferpool.get(curr_pid)
+
+            curr_page.delete_record(curr_rid)
 
         # TODO: Rest of delete
 
     def update(self, key, *columns):
         # TODO: Make sure that right columns are selected
-        values = self.select(key, None)
-
-        rid = self.index[key]
+        rid = self.index.get(key)
+        if rid is None:
+            return
         pids = self.rid_directory[rid]
+
+        to_select = [1 if x is None else 0 for x in columns]
+        values = self.select(key, to_select)
+
+        result = []
+        for i in range(self.num_columns):
+            if columns[i] is not None:
+                result.append(columns[i])
+            else:
+                result.append(values[i])
+
 
         # Set the dirty bits to 1 for the entire record.
         # TODO: Set the dirty bits only to the columns we're changing.
@@ -146,11 +185,12 @@ class Table:
 
         # Create new record in tail page.
         tail_rid = self.new_rid()
-        tail_page.new_record(tail_rid, columns)
+        tail_page.new_record(tail_rid, result)
 
-        # TODO: Delete old key in index
-        # TODO: Optionally update key, if the key is changed
-        self.index[columns[self.key_index]] = rid
+        # Delete old key in index
+        if columns[self.key_index] is not None:
+            self.index[columns[self.key_index]] = rid
+            del (self.index[key])
 
         # Update references for the indirection column, and rid_directory.
         self.indirection[tail_rid] = self.indirection[rid]
@@ -161,8 +201,9 @@ class Table:
         result = 0
 
         for i in range(start_range, end_range + 1):
-            vals = self.select(i, None)
-            if vals not None:
+            compr = [1 if x == aggregate_column else 0 for x in range(self.num_columns)]
+            vals = self.select(i, compr)
+            if vals is not None:
                 result += vals[aggregate_column]
 
         return result

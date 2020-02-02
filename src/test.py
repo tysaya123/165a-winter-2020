@@ -54,8 +54,8 @@ class TestPageMethods(TestCase):
         tail_values = self.num_tail_cols * [self.max_int]
         self.tail_page.new_record(self.max_rid, tail_values)
 
-        self.base_page.mark_record_deleted(self.max_rid)
-        self.tail_page.mark_record_deleted(self.max_rid)
+        self.base_page.delete_record(self.max_rid)
+        self.tail_page.delete_record(self.max_rid)
 
         self.assertEqual(None, self.base_page.read(self.max_rid))
         self.assertEqual(None, self.tail_page.read(self.max_rid))
@@ -68,17 +68,28 @@ class TestTableMethods(TestCase):
 
     def testInsert1(self):
         self.table.insert(10,20,30)
-        vals = self.table.select(10, None)
+        vals = self.table.select(10, 3*[1])
         self.assertEqual([10,20,30], vals)
 
     def testInsert2(self):
         self.table.insert(10,20,30)
         self.table.insert(15,25,35)
-        vals1 = self.table.select(10, None)
-        vals2 = self.table.select(15, None)
+        vals1 = self.table.select(10, 3*[1])
+        vals2 = self.table.select(15, 3*[1])
 
         self.assertEqual([10,20,30], vals1)
         self.assertEqual([15,25,35], vals2)
+
+    def testDelete(self):
+        self.table.insert(1,2,3)
+        self.table.insert(15,25,35)
+
+        self.table.update(1, 5, 3, 4)
+
+        self.table.delete(5)
+
+        self.assertEqual(None, self.table.select(1, 3*[1]))
+        self.assertEqual(None, self.table.select(5, 3*[1]))
 
     def testInsertBig(self):
         NUM_RECORDS = 10000
@@ -86,13 +97,13 @@ class TestTableMethods(TestCase):
             self.table.insert(i, i * 2, i * 3)
 
         for i in range(NUM_RECORDS):
-            vals = self.table.select(i, None)
+            vals = self.table.select(i, 3*[1])
             self.assertEqual([i, i * 2, i * 3], vals)
 
     def testUpdate(self):
         self.table.insert(1, 2, 3)
         self.table.update(1, 5, 3, 4)
-        vals = self.table.select(5, None)
+        vals = self.table.select(5, 3*[1])
         self.assertEqual([5, 3, 4], vals)
 
     def testUpdateBig(self):
@@ -104,7 +115,7 @@ class TestTableMethods(TestCase):
             self.table.update(i, i + NUM_RECORDS, i*20, i*30)
 
         for i in range(1, NUM_RECORDS):
-            vals = self.table.select(i + NUM_RECORDS, None)
+            vals = self.table.select(i + NUM_RECORDS, 3*[1])
             self.assertEqual([i + NUM_RECORDS, i*20, i*30], vals)
 
     def testKeyColumn(self):
@@ -113,11 +124,22 @@ class TestTableMethods(TestCase):
         table.insert(2, 1, 3)
         table.insert(2, 2, 12)
 
-        vals1 = table.select(1, None)
-        vals2 = table.select(2, None)
+        vals1 = table.select(1, 3*[1])
+        vals2 = table.select(2, 3*[1])
 
         self.assertEqual([2,1,3], vals1)
         self.assertEqual([2,2,12], vals2)
+
+    def testSum(self):
+        self.table.insert(1, 2, 3)
+        self.table.insert(2, 2, 3)
+        self.table.insert(3, 2, 4)
+
+        self.table.update(3, 4, 4, 4)
+
+        val = self.table.sum(1, 4, 1)
+
+        self.assertEqual(val, 8)
 
 
 if __name__ == '__main__':

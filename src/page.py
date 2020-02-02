@@ -31,7 +31,7 @@ class Page:
         if rid not in self.records: return None
         return self.records[rid]
 
-    def mark_record_deleted(self, rid):
+    def delete_record(self, rid):
         return self.records.pop(rid, NULL_RID)
 
     def pack(self):

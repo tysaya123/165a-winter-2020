@@ -1,5 +1,5 @@
-from template.table import Table, Record
-from template.index import Index
+from table import Table, Record
+from index import Index
 
 
 class Query:
@@ -17,29 +17,29 @@ class Query:
     """
 
     def delete(self, key):
-        pass
+        self.table.delete(key)
 
     """
     # Insert a record with specified columns
     """
 
     def insert(self, *columns):
-        schema_encoding = '0' * self.table.num_columns
-        pass
+        #schema_encoding = '0' * self.table.num_columns
+        self.table.insert(*columns)
 
     """
     # Read a record with specified key
     """
 
     def select(self, key, query_columns):
-        pass
+        self.table.select(key, query_columns)
 
     """
     # Update a record with specified key and columns
     """
 
     def update(self, key, *columns):
-        pass
+        self.table.update(key, *columns)
 
     """
     :param start_range: int         # Start of the key range to aggregate 
@@ -48,4 +48,4 @@ class Query:
     """
 
     def sum(self, start_range, end_range, aggregate_column_index):
-        pass
+        self.table.sum(start_range, end_range, aggregate_column_index)

@@ -1,10 +1,11 @@
-from template.db import Database
-from template.query import Query
+from db import Database
+from query import Query
 from time import process_time
 from random import choice, randrange
 
 # Student Id and 4 grades
 db = Database()
+# TODO: Check ordering of key_index, num_columns.
 grades_table = db.create_table('Grades', 5, 0)
 query = Query(grades_table)
 keys = []
