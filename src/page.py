@@ -8,11 +8,12 @@ logging.basicConfig(level=logging.DEBUG)
 
 # https://stackoverflow.com/questions/9940859/fastest-way-to-pack-a-list-of-floats-into-bytes-in-python
 
-
 class Page:
     def __init__(self):
+        # add modified bit
         self.num_records = 0
         self.data = bytearray(PAGE_SIZE)
+        self.records = {}
         self.record_size = None
         self.record_format = None
         self.max_records = None
@@ -23,33 +24,32 @@ class Page:
         else:
             return False
 
-    def get_max(self): return self.max_records
+    def get_max(self):
+        return self.max_records
 
     def read(self, rid):
-        for i in range(self.num_records):
-            curr_record = self.get_record(i)
-            if curr_record[0] == rid:
-                return curr_record
-        return None
-
-    def append(self, data):
-        if not self.has_capacity(): return 0
-        self.set_record(self.num_records, data)
-        self.num_records += 1
-        return 1
-
-    def update(self, rid, data, offset=0, length=0):
-        if length == 0: length = self.record_size
-
-        for i in range(self.num_records):
-            curr_record = self.get_record(i)
-            if curr_record[0] == rid:
-                self.data[i * self.record_size + offset:i * self.record_size + offset + length] = data
-                return 1
-        return 0
+        if rid not in self.records: return None
+        return self.records[rid]
 
     def mark_record_deleted(self, rid):
-        return self.update(rid, struct.pack(ENDIAN_FORMAT + RID_FORMAT, 0), 0, RID_SIZE)
+        return self.records.pop(rid, NULL_RID)
+
+    def pack(self):
+        i = 0
+        for key in self.records.keys():
+            record_data = struct.pack(self.record_format, key + self.records[key])
+            self.set_record(i, record_data)
+            i += 1
+        record_data = struct.pack(ENDIAN_FORMAT + RID_FORMAT, NULL_RID)
+        self.set_record(i, record_data)
+
+    def unpack(self, data):
+        i = 0
+        while True:
+            record = self.get_record(i)
+            if record[0] == NULL_RID: break
+            self.records[record[0]] = record[1:]
+            i += 1
 
     def get_record(self, i):
         return struct.unpack(self.record_format,
@@ -67,19 +67,19 @@ class BasePage(Page):
         self.max_records = int(PAGE_SIZE / self.record_size)
 
     def new_record(self, rid, value, dirty):
-        # logging.debug(str(self.num_records) + "/" + str(self.max_records))
-        # logging.debug(self.record_format + ":" + str(rid) + ":" + str(value) + ":" + str(dirty))
-        record_data = struct.pack(self.record_format, rid, value, dirty)
-        self.append(record_data)
+        if not self.has_capacity(): return NULL_RID
+        self.records[rid] = [value] + [dirty]
+        self.num_records += 1
+        return rid
 
     def get_dirty(self, rid):
-        record = self.read(rid)
-        if record is None: return record
-        return record[2]
+        if rid not in self.records: return None
+        return self.records[rid][2]
 
     def set_dirty(self, rid, dirty):
-        dirty = struct.pack(ENDIAN_FORMAT + SCHEMA_FORMAT, dirty)
-        self.update(rid, dirty, RID_SIZE + VALUE_SIZE, SCHEMA_SIZE)
+        if rid not in self.records: return 0
+        self.records[rid][2] = dirty
+        return 1
 
 
 class TailPage(Page):
@@ -91,5 +91,7 @@ class TailPage(Page):
         self.max_records = int(PAGE_SIZE / self.record_size)
 
     def new_record(self, rid, values):
-        record_data = struct.pack(self.record_format, rid, *values)
-        self.append(record_data)
+        if not self.has_capacity(): return NULL_RID
+        self.records[rid] = values
+        self.num_records += 1
+        return rid

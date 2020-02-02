@@ -25,15 +25,15 @@ class TestPageMethods(TestCase):
         tail_values = self.num_tail_cols * [self.max_int]
         self.tail_page.new_record(self.max_rid, tail_values)
 
-        self.assertEqual((self.max_rid, self.max_int, 0), self.base_page.read(self.max_rid))
-        self.assertEqual(tuple(tail_values), self.tail_page.read(self.max_rid)[1:self.num_tail_cols+1])
+        self.assertEqual([self.max_int, 0], self.base_page.read(self.max_rid))
+        self.assertEqual(tail_values, self.tail_page.read(self.max_rid))
 
         self.base_page.new_record(self.min_rid, self.min_int, 0)
         tail_values = self.num_tail_cols * [self.min_int]
         self.tail_page.new_record(self.min_rid, tail_values)
 
-        self.assertEqual((self.max_rid, self.max_int, 0), self.base_page.read(self.max_rid))
-        self.assertEqual(tuple(tail_values), self.tail_page.read(self.min_rid)[1:self.num_tail_cols+1])
+        self.assertEqual([self.max_int, 0], self.base_page.read(self.max_rid))
+        self.assertEqual(tail_values, self.tail_page.read(self.min_rid))
 
     def testBaseCapacity(self):
         for i in range(self.base_page.get_max()):
