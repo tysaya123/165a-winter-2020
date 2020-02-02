@@ -3,6 +3,8 @@ import logging
 from unittest import TestCase
 from random import randrange
 
+import pdb
+
 
 from page import BasePage, TailPage
 from table import Table
@@ -78,8 +80,8 @@ class TestTableMethods(TestCase):
         self.assertEqual([10,20,30], vals1)
         self.assertEqual([15,25,35], vals2)
 
-    def testLot(self):
-        NUM_RECORDS = 400
+    def testInsertBig(self):
+        NUM_RECORDS = 10000
         for i in range(NUM_RECORDS):
             self.table.insert(i, i * 2, i * 3)
 
@@ -87,12 +89,24 @@ class TestTableMethods(TestCase):
             vals = self.table.select(i, None)
             self.assertEqual([i, i * 2, i * 3], vals)
 
-#    def testUpdate(self):
-#        self.table.insert(1, 2, 3)
-#        self.table.update(1, 5, 3, 4)
-#        vals = self.table.select(5, None)
-#        self.assertEqual([5, 3, 4], vals)
-#
+    def testUpdate(self):
+        self.table.insert(1, 2, 3)
+        self.table.update(1, 5, 3, 4)
+        vals = self.table.select(5, None)
+        self.assertEqual([5, 3, 4], vals)
+
+    def testUpdateBig(self):
+        NUM_RECORDS = 10000
+        for i in range(1, NUM_RECORDS):
+            self.table.insert(i, i * 10, i * 20)
+
+        for i in range(1, NUM_RECORDS):
+            self.table.update(i, i + NUM_RECORDS, i*20, i*30)
+
+        for i in range(1, NUM_RECORDS):
+            vals = self.table.select(i + NUM_RECORDS, None)
+            self.assertEqual([i + NUM_RECORDS, i*20, i*30], vals)
+
 
 if __name__ == '__main__':
     unittest.main()

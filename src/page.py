@@ -78,7 +78,7 @@ class BasePage(Page):
 
     def set_dirty(self, rid, dirty):
         if rid not in self.records: return 0
-        self.records[rid][2] = dirty
+        self.records[rid][1] = dirty
         return 1
 
 
