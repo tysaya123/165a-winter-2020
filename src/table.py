@@ -20,13 +20,16 @@ class Table:
     :param index: int               #???
     :param bufferpool: BufferPool   #Reference to the global bufferpool
     """
-    def __init__(self, name, num_columns, key, index, bufferpool):
+    def __init__(self, name, num_columns, key_index, index, bufferpool):
         self.name = name
-        self.key = key
+        self.key_index = key_index
         self.num_columns = num_columns
-        self.page_directory = {}
         self.index = index
         self.bufferpool = bufferpool
+
+        # Maps rids -> pids
+        self.rid_directory = {}
+        # Maps base records to the tail records, rid -> rid
         self.indirection = {}
 
         # A reference to the current base pages and the tail page
@@ -57,7 +60,7 @@ class Table:
 
     def select(self, key, query_columns):
         rid = index.get(column[0])
-        pids = page_directory[rid]
+        pids = rid_directory[rid]
 
         # Result of the select
         vals = []
@@ -75,7 +78,7 @@ class Table:
         # If record has a dirty bit, pull the tail page, and get the values
         # from there. If not, then pull the values from the base pages.
         if has_dirty_bit:
-            tail_page = page_directory[indirection[rid]]
+            tail_page = rid_directory[indirection[rid]]
             vals = tail_page.read(rid)
 
         return vals
@@ -83,7 +86,7 @@ class Table:
 
     def delete(self, key):
         rid = index.get(key)
-        pids = page_directory[rid]
+        pids = rid_directory[rid]
 
         # TODO: Rest of delete
 
@@ -91,7 +94,7 @@ class Table:
         values = self.select(key, *columns)
 
         rid = index.get(key)
-        pids = page_directory[rid]
+        pids = rid_directory[rid]
 
         for pid in pids:
             page = bufferpool.get(pid)
