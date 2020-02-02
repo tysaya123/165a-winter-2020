@@ -45,7 +45,7 @@ class Table:
         self.rid_counter = 1
 
         # Initialize the tail page
-        self.tail_page = bufferpool.new_tail_page(self.num_columns)
+        self.tail_page_pid = bufferpool.new_tail_page(self.num_columns)
 
         # Initialize base pages
         for i in range(self.num_columns):
@@ -86,6 +86,7 @@ class Table:
         # Update page, rid_directory, indirection, index directories
         self.index[columns[0]] = rid
         self.rid_directory[rid] = rids
+        self.indirection[rid] = rid
 
     def select(self, key, query_columns):
         rid = self.index.get(key)
@@ -112,8 +113,9 @@ class Table:
         # from there. If not, then pull the values from the base pages.
         if has_dirty_bit:
             # TODO: Check whether this actually gets proper values or not.
-            tail_page = self.bufferpool.get(self.rid_directory[self.indirection[rid]])
-            vals = tail_page.read(rid)
+            tail_rid = self.indirection[rid]
+            tail_page = self.bufferpool.get(self.rid_directory[tail_rid])
+            vals = list(tail_page.read(tail_rid))
 
         return vals
 
@@ -180,4 +182,4 @@ class Table:
         # Update references for the indirection column, and rid_directory.
         self.indirection[tail_rid] = self.indirection[rid]
         self.indirection[rid] = tail_rid
-        self.rid_directory[tail_rid] = new_pid
+        self.rid_directory[tail_rid] = self.tail_page_pid
