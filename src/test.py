@@ -4,7 +4,10 @@ from unittest import TestCase
 from random import randrange
 
 
-from src.page import BasePage, TailPage
+from page import BasePage, TailPage
+from table import Table
+from bufferpool import BufferPool
+from config import *
 
 
 class TestPageMethods(TestCase):
@@ -54,6 +57,17 @@ class TestPageMethods(TestCase):
 
         self.assertEqual(None, self.base_page.read(self.max_rid))
         self.assertEqual(None, self.tail_page.read(self.max_rid))
+
+
+class TestTableMethods(TestCase):
+    def setUp(self):
+        self.bufferpool = BufferPool()
+        self.table = Table('test', 3, 0, self.bufferpool)
+
+    def testInsert1(self):
+        self.table.insert(10,20,30)
+        vals = self.table.select(10, None)
+        self.assertEqual([10,20,30], vals)
 
 if __name__ == '__main__':
     unittest.main()
