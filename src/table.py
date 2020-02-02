@@ -83,6 +83,7 @@ class Table:
 
         # Update page, rid_directory, indirection, index directories
         self.index[columns[0]] = rid
+        # index={key:rid}
         self.rid_directory[rid] = rids
         self.indirection[rid] = rid
 
@@ -122,6 +123,7 @@ class Table:
         pids = rid_directory[rid]
 
         # TODO: Rest of delete
+
 
     def update(self, key, *columns):
         # TODO: Make sure that right columns are selected

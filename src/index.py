@@ -9,13 +9,27 @@ from template.table import Table
 class Index:
 
     def __init__(self, table):
+        #Maps key to rid
+        self.index = {}
+
         pass
 
     """
     # returns the location of all records with the given value
     """
 
+    def get(self, key):
+        return self.index[key]
+
+    def set(self, key, rid):
+        self.index[key]=rid
+
+    def delete(self , key):
+        del self.index[key]
+
+
     def locate(self, value):
+
         pass
 
     """
@@ -23,6 +37,7 @@ class Index:
     """
 
     def create_index(self, table, column_number):
+
         pass
 
     """
