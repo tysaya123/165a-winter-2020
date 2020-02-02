@@ -1,3 +1,5 @@
+from page import BasePage, TailPage
+
 class BufferPool:
     def __init__(self):
         self.page_directory = {}
@@ -5,8 +7,9 @@ class BufferPool:
 
     def new_base_page(self):
         page = BasePage()
-        page_directory[pid_counter] = page
-        pid_counter += 1
+        self.page_directory[self.pid_counter] = page
+        self.pid_counter += 1
+        return pid_counter - 1
 
     def get(self, pid):
-        return page_directory[pid]
+        return self.page_directory[pid]

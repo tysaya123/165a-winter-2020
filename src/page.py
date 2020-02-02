@@ -1,7 +1,7 @@
 import logging
 import struct
 
-from template.config import *
+from config import *
 
 logging.basicConfig(level=logging.DEBUG)
 
