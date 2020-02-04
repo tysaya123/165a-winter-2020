@@ -15,6 +15,9 @@ class Record:
         self.key = key
         self.columns = columns
 
+    def __str__(self):
+        return str(self.columns)
+
 
 class Table:
     """
@@ -117,7 +120,7 @@ class Table:
             tail_page = self.bufferpool.get(self.rid_directory[tail_rid])
             vals = list(tail_page.read(tail_rid))
 
-        return vals
+        return [Record(rid, self.key_index, vals)]
 
     def delete(self, key):
         base_rid = self.index.get(key)
@@ -159,7 +162,7 @@ class Table:
         pids = self.rid_directory[rid]
 
         to_select = [1 if x is None else 0 for x in columns]
-        values = self.select(key, to_select)
+        values = self.select(key, to_select)[0].columns
 
         result = []
         for i in range(self.num_columns):
@@ -204,6 +207,6 @@ class Table:
             compr = [1 if x == aggregate_column else 0 for x in range(self.num_columns)]
             vals = self.select(i, compr)
             if vals is not None:
-                result += vals[aggregate_column]
+                result += vals[0].columns[aggregate_column]
 
         return result
