@@ -17,3 +17,6 @@ NULL_RID = 0
 class SchemaEncoding(Enum):
     CLEAN = 0
     DIRTY = 1
+
+def init():
+    pass

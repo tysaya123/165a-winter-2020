@@ -5,9 +5,8 @@ from random import randrange
 
 import pdb
 
-
 from page import BasePage, TailPage
-from table import Table
+from table import Table, Record
 from bufferpool import BufferPool
 from config import *
 
@@ -40,13 +39,14 @@ class TestPageMethods(TestCase):
     def testBaseCapacity(self):
         for i in range(self.base_page.get_max()):
             self.assertEqual(True, self.base_page.has_capacity())
-            self.base_page.new_record(randrange(self.max_rid+1), randrange(self.min_int, self.max_int+1), randrange(2))
+            self.base_page.new_record(randrange(self.max_rid + 1), randrange(self.min_int, self.max_int + 1),
+                                      randrange(2))
         self.assertEqual(False, self.base_page.has_capacity())
 
     def testTailCapacity(self):
         for i in range(self.tail_page.get_max()):
             self.assertEqual(True, self.tail_page.has_capacity())
-            self.tail_page.new_record(randrange(self.max_rid+1), 5*[randrange(self.min_int, self.max_int+1)])
+            self.tail_page.new_record(randrange(self.max_rid + 1), 5 * [randrange(self.min_int, self.max_int + 1)])
         self.assertEqual(False, self.tail_page.has_capacity())
 
     def testDeleteRecord(self):
@@ -67,29 +67,29 @@ class TestTableMethods(TestCase):
         self.table = Table('test', 3, 0, self.bufferpool)
 
     def testInsert1(self):
-        self.table.insert(10,20,30)
-        vals = self.table.select(10, 3*[1])
-        self.assertEqual([10,20,30], vals)
+        self.table.insert(10, 20, 30)
+        recs = self.table.select(10, 3 * [1])
+        self.assertEqual([[10, 20, 30]], [x.columns for x in recs])
 
     def testInsert2(self):
-        self.table.insert(10,20,30)
-        self.table.insert(15,25,35)
-        vals1 = self.table.select(10, 3*[1])
-        vals2 = self.table.select(15, 3*[1])
+        self.table.insert(10, 20, 30)
+        self.table.insert(15, 25, 35)
+        recs1 = self.table.select(10, 3 * [1])
+        recs2 = self.table.select(15, 3 * [1])
 
-        self.assertEqual([10,20,30], vals1)
-        self.assertEqual([15,25,35], vals2)
+        self.assertEqual([[10, 20, 30]], [x.columns for x in recs1])
+        self.assertEqual([[15, 25, 35]], [x.columns for x in recs2])
 
     def testDelete(self):
-        self.table.insert(1,2,3)
-        self.table.insert(15,25,35)
+        self.table.insert(1, 2, 3)
+        self.table.insert(15, 25, 35)
 
         self.table.update(1, 5, 3, 4)
 
         self.table.delete(5)
 
-        self.assertEqual(None, self.table.select(1, 3*[1]))
-        self.assertEqual(None, self.table.select(5, 3*[1]))
+        self.assertEqual(None, self.table.select(1, 3 * [1]))
+        self.assertEqual(None, self.table.select(5, 3 * [1]))
 
     def testInsertBig(self):
         NUM_RECORDS = 10000
@@ -97,14 +97,14 @@ class TestTableMethods(TestCase):
             self.table.insert(i, i * 2, i * 3)
 
         for i in range(NUM_RECORDS):
-            vals = self.table.select(i, 3*[1])
-            self.assertEqual([i, i * 2, i * 3], vals)
+            recs = self.table.select(i, 3 * [1])
+            self.assertEqual([[i, i * 2, i * 3]], [x.columns for x in recs])
 
     def testUpdate(self):
         self.table.insert(1, 2, 3)
         self.table.update(1, 5, 3, 4)
-        vals = self.table.select(5, 3*[1])
-        self.assertEqual([5, 3, 4], vals)
+        recs = self.table.select(5, 3 * [1])
+        self.assertEqual([[5, 3, 4]], [x.columns for x in recs])
 
     def testUpdateBig(self):
         NUM_RECORDS = 10000
@@ -112,11 +112,11 @@ class TestTableMethods(TestCase):
             self.table.insert(i, i * 10, i * 20)
 
         for i in range(1, NUM_RECORDS):
-            self.table.update(i, i + NUM_RECORDS, i*20, i*30)
+            self.table.update(i, i + NUM_RECORDS, i * 20, i * 30)
 
         for i in range(1, NUM_RECORDS):
-            vals = self.table.select(i + NUM_RECORDS, 3*[1])
-            self.assertEqual([i + NUM_RECORDS, i*20, i*30], vals)
+            recs = self.table.select(i + NUM_RECORDS, 3 * [1])
+            self.assertEqual([[i + NUM_RECORDS, i * 20, i * 30]], [x.columns for x in recs])
 
     def testKeyColumn(self):
         bufferpool = BufferPool()
@@ -124,11 +124,11 @@ class TestTableMethods(TestCase):
         table.insert(2, 1, 3)
         table.insert(2, 2, 12)
 
-        vals1 = table.select(1, 3*[1])
-        vals2 = table.select(2, 3*[1])
+        recs1 = table.select(1, 3 * [1])
+        recs2 = table.select(2, 3 * [1])
 
-        self.assertEqual([2,1,3], vals1)
-        self.assertEqual([2,2,12], vals2)
+        self.assertEqual([[2, 1, 3]], [x.columns for x in recs1])
+        self.assertEqual([[2, 2, 12]], [x.columns for x in recs2])
 
     def testSum(self):
         self.table.insert(1, 2, 3)

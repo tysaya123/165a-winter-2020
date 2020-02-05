@@ -32,7 +32,7 @@ class Query:
     """
 
     def select(self, key, query_columns):
-        self.table.select(key, query_columns)
+        return self.table.select(key, query_columns)
 
     """
     # Update a record with specified key and columns
@@ -48,4 +48,4 @@ class Query:
     """
 
     def sum(self, start_range, end_range, aggregate_column_index):
-        self.table.sum(start_range, end_range, aggregate_column_index)
+        return self.table.sum(start_range, end_range, aggregate_column_index)
