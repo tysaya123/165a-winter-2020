@@ -8,6 +8,8 @@ import pdb
 from page import BasePage, TailPage
 from table import Table, Record
 from bufferpool import BufferPool
+from query import Query
+from db import Database
 from config import *
 
 
@@ -140,6 +142,25 @@ class TestTableMethods(TestCase):
         val = self.table.sum(1, 4, 1)
 
         self.assertEqual(val, 8)
+
+class TestDbMethods(TestCase):
+
+    def testTwoTables(self):
+        db = Database()
+        table1 = db.create_table('table1', 5, 2)
+        table2 = db.create_table('table2', 7, 4)
+
+        query1 = Query(table1)
+        query2 = Query(table2)
+
+        query1.insert(1, 2, 3, 4, 5)
+        query2.insert(11,12,13,14,15,16,17)
+
+        vals1 = query1.select(3, [1]*5)[0].columns
+        vals2 = query2.select(15, [1]*7)[0].columns
+
+        self.assertEqual(vals1, [1,2,3,4,5])
+        self.assertEqual(vals2, [11,12,13,14,15,16,17])
 
 
 if __name__ == '__main__':
