@@ -152,10 +152,7 @@ class Table:
 
             curr_page.delete_record(curr_rid)
 
-        # TODO: Rest of delete
-
     def update(self, key, *columns):
-        # TODO: Make sure that right columns are selected
         rid = self.index.get(key)
         if rid is None:
             return
