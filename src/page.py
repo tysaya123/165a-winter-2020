@@ -1,7 +1,7 @@
 import logging
 import struct
 
-from config import *
+from src.config import *
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -44,8 +44,7 @@ class Page:
         self.set_record(i, record_data)
 
     def unpack(self, data):
-        i = 0
-        while True:
+        for i in range(self.max_records):
             record = self.get_record(i)
             if record[0] == NULL_RID: break
             self.records[record[0]] = record[1:]
