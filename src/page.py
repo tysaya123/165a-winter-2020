@@ -1,5 +1,6 @@
 import logging
 import struct
+from multiprocessing import Lock
 
 from src.config import *
 
@@ -59,11 +60,14 @@ class Page:
 
 
 class BasePage(Page):
-    def __init__(self):
+    def __init__(self, TPS):
         super().__init__()
         self.record_size = RID_SIZE + VALUE_SIZE + SCHEMA_SIZE
         self.record_format = ENDIAN_FORMAT + RID_FORMAT + VALUES_FORMAT + SCHEMA_FORMAT
         self.max_records = int(PAGE_SIZE / self.record_size)
+        self.lock = Lock()
+        self.pins = 0
+        self.TPS = TPS
 
     def new_record(self, rid, value, dirty):
         if not self.has_capacity(): return NULL_RID
@@ -80,6 +84,19 @@ class BasePage(Page):
         self.records[rid][1] = dirty
         return 1
 
+    def get_tps(self):
+        return self.TPS
+
+    def place_pin(self):
+        self.lock.aquire()
+        self.pins += 1
+        self.lock.release()
+
+    def remove_pin(self):
+        #TODO error if pin == 0
+        self.lock.aquire()
+        self.pins -= 1
+        self.lock.release()
 
 class TailPage(Page):
     def __init__(self, num_cols):
