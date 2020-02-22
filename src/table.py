@@ -3,6 +3,7 @@ RID_COLUMN = 1
 TIMESTAMP_COLUMN = 2
 SCHEMA_ENCODING_COLUMN = 3
 
+from index import Index
 from page import BasePage
 
 import pdb
@@ -17,6 +18,12 @@ class Record:
 
     def __str__(self):
         return str(self.columns)
+
+    def __repr__(self):
+        return 'Record{}'.format(self.columns)
+
+    def __eq__(self, other):
+        return self.columns == other.columns
 
 
 class Table:
@@ -34,7 +41,9 @@ class Table:
         self.bufferpool = bufferpool
 
         # Maps keys -> rids
-        self.index = {}
+        self.indexes = []
+        for i in range(num_columns):
+            self.indexes.append(Index())
 
         # Maps rids -> pids
         self.rid_directory = {}
@@ -87,47 +96,59 @@ class Table:
             rids.append(page_id)
 
         # Update page, rid_directory, indirection, index directories
-        self.index[columns[self.key_index]] = rid
+        for i in range(self.num_columns):
+            self.indexes[i].set(columns[i], rid)
+
         self.rid_directory[rid] = rids
         self.indirection[rid] = rid
 
-    def select(self, key, query_columns):
-        rid = self.index.get(key)
-        if rid is None:
+    def select(self, key, column, query_columns):
+        rids = self.indexes[column].get(key)
+        if rids is None:
             return None
-        pids = self.rid_directory[rid]
 
-        # Result of the select
-        vals = []
+        # Stores all the records for all the rids given.
+        records = []
 
-        # First, check to see if any of the columns have the dirty bit set
-        # for this particular record.
-        has_dirty_bit = False
-        for pid in pids:
-            page = self.bufferpool.get(pid)
+        for i, rid in enumerate(rids):
+            pids = self.rid_directory[rid]
 
-            # Check the record to see if the dirty bit is 1.
-            if page.get_dirty(rid):
-                has_dirty_bit = True
-                break
-            vals.append(page.read(rid)[0])
+            # Result of the select
+            vals = []
 
-        # If record has a dirty bit, pull the tail page, and get the values
-        # from there. If not, then pull the values from the base pages.
-        if has_dirty_bit:
-            # TODO: Check whether this actually gets proper values or not.
-            tail_rid = self.indirection[rid]
-            tail_page = self.bufferpool.get(self.rid_directory[tail_rid])
-            vals = list(tail_page.read(tail_rid))
+            # First, check to see if any of the columns have the dirty bit set
+            # for this particular record.
+            has_dirty_bit = False
+            for pid in pids:
+                page = self.bufferpool.get(pid)
 
-        return [Record(rid, self.key_index, vals)]
+                # Check the record to see if the dirty bit is 1.
+                if page.get_dirty(rid):
+                    has_dirty_bit = True
+                    break
+                vals.append(page.read(rid)[0])
+
+            # If record has a dirty bit, pull the tail page, and get the values
+            # from there. If not, then pull the values from the base pages.
+            if has_dirty_bit:
+                # TODO: Check whether this actually gets proper values or not.
+                tail_rid = self.indirection[rid]
+                tail_page = self.bufferpool.get(self.rid_directory[tail_rid])
+                vals = list(tail_page.read(tail_rid))
+
+            records.append(Record(rid, i, vals))
+
+        return records
 
     def delete(self, key):
-        base_rid = self.index.get(key)
+        base_rid = self.indexes[self.key_index].get(key)[0]
         if base_rid is None:
             return
 
-        del (self.index[key])
+        # Delete the key -> rid mappings for all of the indexes.
+        values = self.select(key, self.key_index, [1] * self.num_columns)[0].columns
+        for i, val in enumerate(values):
+            self.indexes[i].delete(values[i], base_rid)
         pids = self.rid_directory[base_rid]
 
         # Mark all base records as deleted
@@ -152,18 +173,17 @@ class Table:
 
             curr_page.delete_record(curr_rid)
 
-        # TODO: Rest of delete
-
     def update(self, key, *columns):
-        # TODO: Make sure that right columns are selected
-        rid = self.index.get(key)
+        rid = self.indexes[self.key_index].get(key)[0]
         if rid is None:
             return
         pids = self.rid_directory[rid]
 
         to_select = [1 if x is None else 0 for x in columns]
-        values = self.select(key, to_select)[0].columns
+        values = self.select(key, self.key_index, to_select)[0].columns
 
+        # Get all of the updated values into result, from either the passed
+        # in variable columns or from the tail page.
         result = []
         for i in range(self.num_columns):
             if columns[i] is not None:
@@ -190,10 +210,11 @@ class Table:
         tail_rid = self.new_rid()
         tail_page.new_record(tail_rid, result)
 
-        # Delete old key in index
-        if columns[self.key_index] is not None:
-            self.index[columns[self.key_index]] = rid
-            del (self.index[key])
+        # Delete old keys for the indexes.
+        for i in range(self.num_columns):
+            if columns[i] is not None and columns[i] != values[i]:
+                self.indexes[i].set(columns[i], rid)
+                self.indexes[i].delete(values[i], rid)
 
         # Update references for the indirection column, and rid_directory.
         self.indirection[tail_rid] = self.indirection[rid]
@@ -205,7 +226,7 @@ class Table:
 
         for i in range(start_range, end_range + 1):
             compr = [1 if x == aggregate_column else 0 for x in range(self.num_columns)]
-            vals = self.select(i, compr)
+            vals = self.select(i, self.key_index, compr)
             if vals is not None:
                 result += vals[0].columns[aggregate_column]
 
