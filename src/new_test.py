@@ -1,7 +1,7 @@
 import unittest
 import logging
 from unittest import TestCase
-from random import randrange
+from random import randrange, randint
 
 import pdb
 
@@ -144,6 +144,65 @@ class TestDbMethods(TestCase):
         self.assertEqual(vals1, [1,2,3,4,5])
         self.assertEqual(vals2, [11,12,13,14,15,16,17])
 
+class TestBufferPoolMethods(TestCase):
+    def setUp(self):
+        self.bufferpool = BufferPool()
+
+    def testNewBasePage(self):
+        pid = self.bufferpool.new_base_page()
+        page = self.bufferpool.get(pid)
+        page.new_record(0, 1, 0)
+
+        self.assertEqual(page.read(0), [1, 0])
+
+    def testNewTailPage(self):
+        pid = self.bufferpool.new_tail_page(3)
+        page = self.bufferpool.get(pid)
+        page.new_record(0, [1,2,3])
+
+        self.assertEqual(page.read(0), [1,2,3])
+
+    def testManyBaseRecords(self):
+        vals = []
+        page_pids = []
+        for i in range(1, 10000):
+            vals.append([i, randint(0, 1000), randint(0, 1)])
+
+        pid = self.bufferpool.new_base_page()
+        page = self.bufferpool.get(pid)
+
+        for val in vals:
+            if not page.has_capacity():
+                pid = self.bufferpool.new_base_page()
+                page = self.bufferpool.get(pid)
+            page.new_record(*val)
+            page_pids.append(pid)
+
+        for i, val in enumerate(vals):
+            page = self.bufferpool.get(page_pids[i])
+            page_vals = page.read(val[0])
+            self.assertEqual(page_vals, val[1:])
+
+    def testManyTailRecords(self):
+        vals = []
+        page_pids = []
+        for i in range(1, 10000):
+            vals.append([i, randint(0, 1000), randint(0, 50), randint(0, 100)])
+
+        pid = self.bufferpool.new_tail_page(3)
+        page = self.bufferpool.get(pid)
+
+        for val in vals:
+            if not page.has_capacity():
+                pid = self.bufferpool.new_tail_page(3)
+                page = self.bufferpool.get(pid)
+            page.new_record(val[0], val[1:])
+            page_pids.append(pid)
+
+        for i, val in enumerate(vals):
+            page = self.bufferpool.get(page_pids[i])
+            page_vals = page.read(val[0])
+            self.assertEqual(page_vals, val[1:])
 
 if __name__ == '__main__':
     unittest.main()
