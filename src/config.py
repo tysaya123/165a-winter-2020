@@ -1,8 +1,9 @@
 # Global Setting for the Database
 # PageSize, StartRID, etc..
 from enum import Enum
+from mmap import PAGESIZE
 
-PAGE_SIZE = 4096
+PAGE_SIZE = PAGESIZE
 ENDIAN_FORMAT = '>'
 RID_FORMAT = 'L'
 VALUES_FORMAT = 'q'
@@ -12,6 +13,9 @@ VALUE_SIZE = 8
 SCHEMA_SIZE = 1
 
 NULL_RID = 0
+
+# Number of pages possible in the buffer pool 128000 is 1/2 a gb
+BUFFERPOOL_SIZE = 1000
 
 
 class SchemaEncoding(Enum):
