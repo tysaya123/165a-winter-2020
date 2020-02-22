@@ -21,8 +21,8 @@ class Index:
         # delete function finds given key and removes using pop function
     """
     def delete(self, key):
-        for i in self.index[key]
-            if i == key
+        for i in self.index[key]:
+            if i == key:
                 self.index.pop(key)
 
 """
