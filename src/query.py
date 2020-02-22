@@ -24,15 +24,14 @@ class Query:
     """
 
     def insert(self, *columns):
-        #schema_encoding = '0' * self.table.num_columns
         self.table.insert(*columns)
 
     """
     # Read a record with specified key
     """
 
-    def select(self, key, query_columns):
-        return self.table.select(key, query_columns)
+    def select(self, key, column, query_columns):
+        return self.table.select(key, column, query_columns)
 
     """
     # Update a record with specified key and columns

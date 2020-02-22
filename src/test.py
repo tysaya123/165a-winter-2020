@@ -1,7 +1,7 @@
 import unittest
 import logging
 from unittest import TestCase
-from random import randrange
+from random import randrange, randint
 
 import pdb
 
@@ -66,82 +66,124 @@ class TestPageMethods(TestCase):
 class TestTableMethods(TestCase):
     def setUp(self):
         self.bufferpool = BufferPool()
-        self.table = Table('test', 3, 0, self.bufferpool)
+        self.table = Table('test', 3, 1, self.bufferpool)
 
     def testInsert1(self):
-        self.table.insert(10, 20, 30)
-        recs = self.table.select(10, 3 * [1])
-        self.assertEqual([[10, 20, 30]], [x.columns for x in recs])
-
-    def testInsert2(self):
-        self.table.insert(10, 20, 30)
-        self.table.insert(15, 25, 35)
-        recs1 = self.table.select(10, 3 * [1])
-        recs2 = self.table.select(15, 3 * [1])
-
-        self.assertEqual([[10, 20, 30]], [x.columns for x in recs1])
-        self.assertEqual([[15, 25, 35]], [x.columns for x in recs2])
-
-    def testDelete(self):
-        self.table.insert(1, 2, 3)
-        self.table.insert(15, 25, 35)
-
-        self.table.update(1, 5, 3, 4)
-
-        self.table.delete(5)
-
-        self.assertEqual(None, self.table.select(1, 3 * [1]))
-        self.assertEqual(None, self.table.select(5, 3 * [1]))
-
-    def testInsertBig(self):
-        NUM_RECORDS = 10000
-        for i in range(NUM_RECORDS):
-            self.table.insert(i, i * 2, i * 3)
-
-        for i in range(NUM_RECORDS):
-            recs = self.table.select(i, 3 * [1])
-            self.assertEqual([[i, i * 2, i * 3]], [x.columns for x in recs])
-
-    def testUpdate(self):
-        self.table.insert(1, 2, 3)
-        self.table.update(1, 5, 3, 4)
-        recs = self.table.select(5, 3 * [1])
-        self.assertEqual([[5, 3, 4]], [x.columns for x in recs])
-
-    def testUpdateBig(self):
-        NUM_RECORDS = 10000
-        for i in range(1, NUM_RECORDS):
-            self.table.insert(i, i * 10, i * 20)
-
-        for i in range(1, NUM_RECORDS):
-            self.table.update(i, i + NUM_RECORDS, i * 20, i * 30)
-
-        for i in range(1, NUM_RECORDS):
-            recs = self.table.select(i + NUM_RECORDS, 3 * [1])
-            self.assertEqual([[i + NUM_RECORDS, i * 20, i * 30]], [x.columns for x in recs])
-
-    def testKeyColumn(self):
-        bufferpool = BufferPool()
-        table = Table('test', 3, 1, self.bufferpool)
-        table.insert(2, 1, 3)
-        table.insert(2, 2, 12)
-
-        recs1 = table.select(1, 3 * [1])
-        recs2 = table.select(2, 3 * [1])
-
-        self.assertEqual([[2, 1, 3]], [x.columns for x in recs1])
-        self.assertEqual([[2, 2, 12]], [x.columns for x in recs2])
-
-    def testSum(self):
-        self.table.insert(1, 2, 3)
         self.table.insert(2, 2, 3)
-        self.table.insert(3, 2, 4)
+        self.table.insert(2, 3, 4)
+        self.table.insert(2, 4, 4)
 
-        self.table.update(3, 4, 4, 4)
+    def testSelect1(self):
+        self.table.insert(2, 2, 3)
+        self.table.insert(2, 3, 4)
+        self.table.insert(2, 4, 4)
 
-        val = self.table.sum(1, 4, 1)
+        vals1 = self.table.select(2, 1, [1]*3)
+        truth1 = [Record(0, 0, [2, 2, 3])]
 
-        self.assertEqual(val, 8)
+        vals2 = self.table.select(2, 0, [1]*3)
+        truth2 = [Record(0, 0, [2,2,3]), Record(0, 0, [2,3,4]), Record(0, 0, [2, 4, 4])]
+
+        self.assertEqual(vals1, truth1)
+        self.assertEqual(vals2, truth2)
+
+    def testUpdate1(self):
+        self.table.insert(2, 2, 3)
+        self.table.insert(2, 3, 4)
+        self.table.insert(2, 4, 4)
+
+        self.table.update(2, None, 2, 5)
+        self.table.update(4, 2, 5, None)
+
+        vals2 = self.table.select(2, 0, [1]*3)
+        truth2 = [Record(0, 0, [2,2,5]), Record(0, 0, [2,3,4]), Record(0, 0, [2, 5, 4])]
+
+        self.assertEqual(vals2, truth2)
+
+    def testDelete1(self):
+        self.table.insert(2, 2, 3)
+        self.table.insert(2, 3, 4)
+        self.table.insert(2, 4, 4)
+
+        self.table.delete(2)
+
+        vals2 = self.table.select(2, 0, [1]*3)
+        truth2 = [Record(0, 0, [2,3,4]), Record(0, 0, [2, 4, 4])]
+
+        self.assertEqual(vals2, truth2)
+
+    def testSum1(self):
+        self.table.insert(2, 2, 3)
+        self.table.insert(2, 3, 4)
+        self.table.insert(2, 4, 4)
+
+        vals1 = self.table.sum(1, 5, 0)
+        vals2 = self.table.sum(1, 5, 1)
+        vals3 = self.table.sum(1, 5, 2)
+
+        self.assertEqual(vals1, 6)
+        self.assertEqual(vals2, 9)
+        self.assertEqual(vals3, 11)
+
+class TestBufferPoolMethods(TestCase):
+    def setUp(self):
+        self.bufferpool = BufferPool()
+
+    def testNewBasePage(self):
+        pid = self.bufferpool.new_base_page()
+        page = self.bufferpool.get(pid)
+        page.new_record(0, 1, 0)
+
+        self.assertEqual(page.read(0), [1, 0])
+
+    def testNewTailPage(self):
+        pid = self.bufferpool.new_tail_page(3)
+        page = self.bufferpool.get(pid)
+        page.new_record(0, [1,2,3])
+
+        self.assertEqual(page.read(0), [1,2,3])
+
+    def testManyBaseRecords(self):
+        vals = []
+        page_pids = []
+        for i in range(1, 10000):
+            vals.append([i, randint(0, 1000), randint(0, 1)])
+
+        pid = self.bufferpool.new_base_page()
+        page = self.bufferpool.get(pid)
+
+        for val in vals:
+            if not page.has_capacity():
+                pid = self.bufferpool.new_base_page()
+                page = self.bufferpool.get(pid)
+            page.new_record(*val)
+            page_pids.append(pid)
+
+        for i, val in enumerate(vals):
+            page = self.bufferpool.get(page_pids[i])
+            page_vals = page.read(val[0])
+            self.assertEqual(page_vals, val[1:])
+
+    def testManyTailRecords(self):
+        vals = []
+        page_pids = []
+        for i in range(1, 10000):
+            vals.append([i, randint(0, 1000), randint(0, 50), randint(0, 100)])
+
+        pid = self.bufferpool.new_tail_page(3)
+        page = self.bufferpool.get(pid)
+
+        for val in vals:
+            if not page.has_capacity():
+                pid = self.bufferpool.new_tail_page(3)
+                page = self.bufferpool.get(pid)
+            page.new_record(val[0], val[1:])
+            page_pids.append(pid)
+
+        for i, val in enumerate(vals):
+            page = self.bufferpool.get(page_pids[i])
+            page_vals = page.read(val[0])
+            self.assertEqual(page_vals, val[1:])
 
 class TestDbMethods(TestCase):
 
@@ -156,8 +198,8 @@ class TestDbMethods(TestCase):
         query1.insert(1, 2, 3, 4, 5)
         query2.insert(11,12,13,14,15,16,17)
 
-        vals1 = query1.select(3, [1]*5)[0].columns
-        vals2 = query2.select(15, [1]*7)[0].columns
+        vals1 = query1.select(3, 2, [1]*5)[0].columns
+        vals2 = query2.select(15, 4, [1]*7)[0].columns
 
         self.assertEqual(vals1, [1,2,3,4,5])
         self.assertEqual(vals2, [11,12,13,14,15,16,17])
