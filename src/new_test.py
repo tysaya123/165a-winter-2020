@@ -125,25 +125,6 @@ class TestTableMethods(TestCase):
         self.assertEqual(vals2, 9)
         self.assertEqual(vals3, 11)
 
-class TestDbMethods(TestCase):
-
-    def testTwoTables(self):
-        db = Database()
-        table1 = db.create_table('table1', 5, 2)
-        table2 = db.create_table('table2', 7, 4)
-
-        query1 = Query(table1)
-        query2 = Query(table2)
-
-        query1.insert(1, 2, 3, 4, 5)
-        query2.insert(11,12,13,14,15,16,17)
-
-        vals1 = query1.select(3, [1]*5)[0].columns
-        vals2 = query2.select(15, [1]*7)[0].columns
-
-        self.assertEqual(vals1, [1,2,3,4,5])
-        self.assertEqual(vals2, [11,12,13,14,15,16,17])
-
 class TestBufferPoolMethods(TestCase):
     def setUp(self):
         self.bufferpool = BufferPool()
