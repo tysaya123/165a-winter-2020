@@ -1,5 +1,6 @@
 import unittest
 import logging
+import struct
 from unittest import TestCase
 from random import randrange, randint
 
@@ -61,6 +62,22 @@ class TestPageMethods(TestCase):
 
         self.assertEqual(None, self.base_page.read(self.max_rid))
         self.assertEqual(None, self.tail_page.read(self.max_rid))
+
+    def testPack(self):
+        self.base_page.new_record(1, 10, 0)
+        self.base_page.new_record(2, 50, 1)
+
+        byte_rep = self.base_page.pack()
+        val = struct.pack(self.base_page.record_format, 1, 10, 0) + struct.pack(self.base_page.record_format, 2, 50, 1)
+        val = val.ljust(4096, b'\00')
+
+        self.assertEqual(byte_rep, val)
+
+    def testUnpack(self):
+        pass
+
+    def testPackUnpack(self):
+        pass
 
 
 class TestTableMethods(TestCase):
