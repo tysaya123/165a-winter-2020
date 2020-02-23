@@ -1,5 +1,6 @@
 import mmap
 from multiprocessing import Lock
+from random import choice
 
 from config import PAGE_SIZE, BUFFERPOOL_SIZE
 from page import BasePage, TailPage
@@ -21,8 +22,7 @@ class BufferPool:
         page_rep = PageRep()
 
         if self.next_open_page < BUFFERPOOL_SIZE:
-            pass
-            #TODO vacate a page
+            self.vacate()
 
         self.page_directory[self.pid_counter] = page
         self.page_rep_directory[self.pid_counter] = page_rep
@@ -34,8 +34,7 @@ class BufferPool:
         page_rep = PageRep()
 
         if self.next_open_page >= BUFFERPOOL_SIZE:
-            pass
-            #TODO vacate a page
+            self.vacate()
 
         self.page_directory[self.pid_counter] = tail_page
         self.page_rep_directory[self.pid_counter] = page_rep
@@ -61,8 +60,7 @@ class BufferPool:
 
         # Otherwise check if there is space in the bufferpool
         if self.next_open_page >= BUFFERPOOL_SIZE:
-            pass
-            # TODO vacate a page
+            self.vacate()
 
         # Get the page from memory
         page_data = self.read_page_from_memory(page_rep)
@@ -78,14 +76,32 @@ class BufferPool:
         return self.mem_file.read(PAGE_SIZE)
 
     def vacate(self):
-        pass
-
-    def get_open_memory_location(self):
-        pass
-
-
-    def page_in_memory(self, pid):
+        flushed = False
+        while not flushed:
+            # Choose a random pid from the page directory
+            pid_to_flush = choice(list(self.page_directory.items()))
+            flushed = self.flush(pid_to_flush)
         return
+
+    def flush(self, pid):
+        # TODO add check for pins and return false if being used
+        page_rep = self.page_rep_directory[pid]
+        page = self.page_directory[pid]
+        if page_rep.get_memory_offset == -1:
+            # Allocate space
+            pass
+
+        data = page.pack()
+
+        offset = page_rep.get_memory_offset()
+        self.mem_file.seek(offset)
+
+        self.mem_file.write(data)
+        self.mem_file.flush()
+
+        page_rep.set_in_memory = False
+
+        return True
 
     def create_memory_map(self):
         return mmap.mmap(self.mem_file.fileno(), 0)
