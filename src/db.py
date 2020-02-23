@@ -11,7 +11,7 @@ class Database():
         pass
 
     def close(self):
-        pass
+        self.bufferpool.close_file()
 
     """
     # Creates a new table

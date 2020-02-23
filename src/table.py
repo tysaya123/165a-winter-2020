@@ -79,7 +79,7 @@ class Table:
 
         for i, base_page in enumerate(self.base_page_pids):
 
-            page = self.bufferpool.get(base_page)
+            page = self.bufferpool.get_base_page(base_page)
 
             # Check to see if base page for column has space. If not, allocate
             # new page, and update references to it.
@@ -89,7 +89,7 @@ class Table:
 
             # Write to the base page
             page_id = self.base_page_pids[i]
-            base_page = self.bufferpool.get(page_id)
+            base_page = self.bufferpool.get_base_page(page_id)
             base_page.new_record(rid, columns[i], 0)
 
             # Create reference from the record id to the page for it
@@ -120,7 +120,7 @@ class Table:
             # for this particular record.
             has_dirty_bit = False
             for pid in pids:
-                page = self.bufferpool.get(pid)
+                page = self.bufferpool.get_base_page(pid)
 
                 # Check the record to see if the dirty bit is 1.
                 if page.get_dirty(rid):
@@ -133,7 +133,7 @@ class Table:
             if has_dirty_bit:
                 # TODO: Check whether this actually gets proper values or not.
                 tail_rid = self.indirection[rid]
-                tail_page = self.bufferpool.get(self.rid_directory[tail_rid])
+                tail_page = self.bufferpool.get_tail_page(self.rid_directory[tail_rid], self.num_columns)
                 vals = list(tail_page.read(tail_rid))
 
             records.append(Record(rid, i, vals))
@@ -153,7 +153,7 @@ class Table:
 
         # Mark all base records as deleted
         for pid in pids:
-            curr_page = self.bufferpool.get(pid)
+            curr_page = self.bufferpool.get_base_page(pid)
             curr_page.delete_record(base_rid)
 
         # Loop through the cycle of records
@@ -169,7 +169,7 @@ class Table:
 
             # Get the page of tail record
             curr_pid = self.rid_directory[curr_rid]
-            curr_page = self.bufferpool.get(curr_pid)
+            curr_page = self.bufferpool.get_tail_page(curr_pid, self.num_columns)
 
             curr_page.delete_record(curr_rid)
 
@@ -195,16 +195,16 @@ class Table:
         # Set the dirty bits to 1 for the entire record.
         # TODO: Set the dirty bits only to the columns we're changing.
         for pid in pids:
-            page = self.bufferpool.get(pid)
+            page = self.bufferpool.get_base_page(pid)
             page.set_dirty(rid, 1)
 
-        tail_page = self.bufferpool.get(self.tail_page_pid)
+        tail_page = self.bufferpool.get_tail_page(self.tail_page_pid, self.num_columns)
 
         # Allocate new tail page, update references
         if not tail_page.has_capacity():
             new_pid = self.bufferpool.new_tail_page(self.num_columns)
             self.tail_page_pid = new_pid
-            tail_page = self.bufferpool.get(new_pid)
+            tail_page = self.bufferpool.get_tail_page(new_pid, self.num_columns)
 
         # Create new record in tail page.
         tail_rid = self.new_rid()

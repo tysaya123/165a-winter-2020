@@ -1,9 +1,8 @@
 import mmap
 from multiprocessing import Lock
-from Queue import Queue
 
-from src.config import PAGE_SIZE, BUFFERPOOL_SIZE
-from src.page import BasePage, TailPage
+from config import PAGE_SIZE, BUFFERPOOL_SIZE
+from page import BasePage, TailPage
 
 
 class BufferPool:
@@ -14,16 +13,14 @@ class BufferPool:
 
         self.memory_file_name = "memory_file.txt"
         self.mem_file = open(self.memory_file_name, "w+b")
-        self.open_pages = [True]*BUFFERPOOL_SIZE
         # When next_open_memory > BUFFERPOOL_SIZE then begin evicting
         self.next_open_page = 0
-        self.open_locations_on_disk = Queue()
 
     def new_base_page(self):
         page = BasePage()
         page_rep = PageRep()
 
-        if self.open_pages < BUFFERPOOL_SIZE:
+        if self.next_open_page < BUFFERPOOL_SIZE:
             pass
             #TODO vacate a page
 
@@ -36,7 +33,7 @@ class BufferPool:
         tail_page = TailPage(num_cols)
         page_rep = PageRep()
 
-        if self.open_pages >= BUFFERPOOL_SIZE:
+        if self.next_open_page >= BUFFERPOOL_SIZE:
             pass
             #TODO vacate a page
 
@@ -45,8 +42,8 @@ class BufferPool:
         self.pid_counter += 1
         return self.pid_counter - 1
 
-    def get_tail_page(self, pid):
-        page = TailPage()
+    def get_tail_page(self, pid, num_cols):
+        page = TailPage(num_cols)
         page = self.get_page(pid, page)
         return page
 
@@ -55,7 +52,7 @@ class BufferPool:
         page = self.get_page(pid, page)
         return page
 
-    def get_page(self, page):
+    def get_page(self, pid, page):
         page_rep = self.page_rep_directory[pid]
         page_rep.place_pin()
 
@@ -63,7 +60,7 @@ class BufferPool:
             return self.page_directory[pid]
 
         # Otherwise check if there is space in the bufferpool
-        if self.open_pages >= BUFFERPOOL_SIZE:
+        if self.next_open_page >= BUFFERPOOL_SIZE:
             pass
             # TODO vacate a page
 

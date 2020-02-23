@@ -85,6 +85,9 @@ class TestTableMethods(TestCase):
         self.bufferpool = BufferPool()
         self.table = Table('test', 3, 1, self.bufferpool)
 
+    def tearDown(self):
+        self.bufferpool.close_file()
+
     def testInsert1(self):
         self.table.insert(2, 2, 3)
         self.table.insert(2, 3, 4)
@@ -146,16 +149,19 @@ class TestBufferPoolMethods(TestCase):
     def setUp(self):
         self.bufferpool = BufferPool()
 
+    def tearDown(self):
+        self.bufferpool.close_file()
+
     def testNewBasePage(self):
         pid = self.bufferpool.new_base_page()
-        page = self.bufferpool.get(pid)
+        page = self.bufferpool.get_base_page(pid)
         page.new_record(0, 1, 0)
 
         self.assertEqual(page.read(0), [1, 0])
 
     def testNewTailPage(self):
         pid = self.bufferpool.new_tail_page(3)
-        page = self.bufferpool.get(pid)
+        page = self.bufferpool.get_tail_page(pid, 3)
         page.new_record(0, [1,2,3])
 
         self.assertEqual(page.read(0), [1,2,3])
@@ -167,17 +173,17 @@ class TestBufferPoolMethods(TestCase):
             vals.append([i, randint(0, 1000), randint(0, 1)])
 
         pid = self.bufferpool.new_base_page()
-        page = self.bufferpool.get(pid)
+        page = self.bufferpool.get_base_page(pid)
 
         for val in vals:
             if not page.has_capacity():
                 pid = self.bufferpool.new_base_page()
-                page = self.bufferpool.get(pid)
+                page = self.bufferpool.get_base_page(pid)
             page.new_record(*val)
             page_pids.append(pid)
 
         for i, val in enumerate(vals):
-            page = self.bufferpool.get(page_pids[i])
+            page = self.bufferpool.get_base_page(page_pids[i])
             page_vals = page.read(val[0])
             self.assertEqual(page_vals, val[1:])
 
@@ -188,26 +194,30 @@ class TestBufferPoolMethods(TestCase):
             vals.append([i, randint(0, 1000), randint(0, 50), randint(0, 100)])
 
         pid = self.bufferpool.new_tail_page(3)
-        page = self.bufferpool.get(pid)
+        page = self.bufferpool.get_tail_page(pid, 3)
 
         for val in vals:
             if not page.has_capacity():
                 pid = self.bufferpool.new_tail_page(3)
-                page = self.bufferpool.get(pid)
+                page = self.bufferpool.get_tail_page(pid, 3)
             page.new_record(val[0], val[1:])
             page_pids.append(pid)
 
         for i, val in enumerate(vals):
-            page = self.bufferpool.get(page_pids[i])
+            page = self.bufferpool.get_tail_page(page_pids[i], 3)
             page_vals = page.read(val[0])
             self.assertEqual(page_vals, val[1:])
 
 class TestDbMethods(TestCase):
+    def setUp(self):
+        self.db = Database()
+
+    def tearDown(self):
+        self.db.close()
 
     def testTwoTables(self):
-        db = Database()
-        table1 = db.create_table('table1', 5, 2)
-        table2 = db.create_table('table2', 7, 4)
+        table1 = self.db.create_table('table1', 5, 2)
+        table2 = self.db.create_table('table2', 7, 4)
 
         query1 = Query(table1)
         query2 = Query(table2)
