@@ -1,6 +1,7 @@
 import mmap
 from multiprocessing import Lock
 from random import choice
+import logging
 
 from config import PAGE_SIZE, BUFFERPOOL_SIZE
 from page import BasePage, TailPage
@@ -14,16 +15,17 @@ class BufferPool:
 
         self.memory_file_name = "memory_file.txt"
         self.mem_file = open(self.memory_file_name, "w+b")
-        # When next_open_memory > BUFFERPOOL_SIZE then begin evicting
-        self.next_open_page = 0
+        # When num_open_memory > BUFFERPOOL_SIZE then begin evicting
+        self.num_open_page = 0
 
     def new_base_page(self):
         page = BasePage()
         page_rep = PageRep()
 
-        if self.next_open_page < BUFFERPOOL_SIZE:
+        if self.num_open_page >= BUFFERPOOL_SIZE:
             self.vacate()
 
+        self.num_open_page += 1
         self.page_directory[self.pid_counter] = page
         self.page_rep_directory[self.pid_counter] = page_rep
         self.pid_counter += 1
@@ -33,9 +35,10 @@ class BufferPool:
         tail_page = TailPage(num_cols)
         page_rep = PageRep()
 
-        if self.next_open_page >= BUFFERPOOL_SIZE:
+        if self.num_open_page >= BUFFERPOOL_SIZE:
             self.vacate()
 
+        self.num_open_page += 1
         self.page_directory[self.pid_counter] = tail_page
         self.page_rep_directory[self.pid_counter] = page_rep
         self.pid_counter += 1
@@ -59,8 +62,11 @@ class BufferPool:
             return self.page_directory[pid]
 
         # Otherwise check if there is space in the bufferpool
-        if self.next_open_page >= BUFFERPOOL_SIZE:
+        if self.num_open_page >= BUFFERPOOL_SIZE:
             self.vacate()
+
+        # Increment the number of pages in the bufferpool
+        self.num_open_page += 1
 
         # Get the page from memory
         page_data = self.read_page_from_memory(page_rep)
@@ -77,10 +83,13 @@ class BufferPool:
 
     def vacate(self):
         flushed = False
-        while not flushed:
+        while flushed:
             # Choose a random pid from the page directory
-            pid_to_flush = choice(list(self.page_directory.items()))
+            pids = list(self.page_directory.keys())
+            pid_to_flush = choice(pids)
             flushed = self.flush(pid_to_flush)
+
+        self.num_open_page -= 1
         return
 
     def flush(self, pid):
