@@ -74,7 +74,18 @@ class TestPageMethods(TestCase):
         self.assertEqual(byte_rep, val)
 
     def testUnpack(self):
-        pass
+        self.base_page.new_record(1, 10, 0)
+        self.base_page.new_record(2, 50, 1)
+
+        data = bytes()
+        data += struct.pack('>Lqb', 5, 50, 1)
+        data += struct.pack('>Lqb', 10, 100, 0)
+        data = data.ljust(4096, b'0')
+
+        self.base_page.unpack(data)
+
+        self.assertEqual(self.base_page.read(5), [50, 1])
+        self.assertEqual(self.base_page.read(10), [100, 0])
 
     def testPackUnpack(self):
         pass
