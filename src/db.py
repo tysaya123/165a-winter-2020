@@ -7,7 +7,8 @@ class Database():
         self.tables = {}
         self.bufferpool = BufferPool()
 
-    def open(self):
+    def open(self, file):
+        #TODO pass file to bufferpool
         pass
 
     def close(self):

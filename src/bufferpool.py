@@ -9,7 +9,6 @@ from page import BasePage, TailPage
 
 class BufferPool:
     def __init__(self):
-        self.page_directory = {}
         self.page_rep_directory = {}
         self.pid_counter = 1
 
@@ -19,27 +18,29 @@ class BufferPool:
         self.num_open_page = 0
 
     def new_base_page(self):
-        page = BasePage()
         page_rep = PageRep()
+        page_rep.set_page(BasePage())
+        page_rep.get_page().dirty = True
 
         if self.num_open_page >= BUFFERPOOL_SIZE:
+            # logging.debug("not enough space")
             self.vacate()
 
         self.num_open_page += 1
-        self.page_directory[self.pid_counter] = page
         self.page_rep_directory[self.pid_counter] = page_rep
         self.pid_counter += 1
         return self.pid_counter - 1
 
     def new_tail_page(self, num_cols):
-        tail_page = TailPage(num_cols)
         page_rep = PageRep()
+        page_rep.set_page(TailPage(num_cols))
+        page_rep.get_page().dirty = True
 
         if self.num_open_page >= BUFFERPOOL_SIZE:
+            # logging.debug("not enough space")
             self.vacate()
 
         self.num_open_page += 1
-        self.page_directory[self.pid_counter] = tail_page
         self.page_rep_directory[self.pid_counter] = page_rep
         self.pid_counter += 1
         return self.pid_counter - 1
@@ -56,13 +57,17 @@ class BufferPool:
 
     def get_page(self, pid, page):
         page_rep = self.page_rep_directory[pid]
-        page_rep.place_pin()
+        # page_rep.place_pin()
+
+        # logging.debug(pid)
 
         if page_rep.get_in_memory():
-            return self.page_directory[pid]
+            return self.page_rep_directory[pid].get_page()
 
         # Otherwise check if there is space in the bufferpool
+        # logging.debug(num_open_page + ':' + BUFFERPOOL_SIZE)
         if self.num_open_page >= BUFFERPOOL_SIZE:
+            # logging.debug("not enough space")
             self.vacate()
 
         # Increment the number of pages in the bufferpool
@@ -71,7 +76,7 @@ class BufferPool:
         # Get the page from memory
         page_data = self.read_page_from_memory(page_rep)
         page.unpack(page_data)
-        self.page_directory[pid] = page
+        self.page_rep_directory[pid].set_page(page)
         page_rep.set_in_memory(True)
 
         return page
@@ -83,32 +88,47 @@ class BufferPool:
 
     def vacate(self):
         flushed = False
-        while flushed:
+        while not flushed:
             # Choose a random pid from the page directory
-            pids = list(self.page_directory.keys())
+            pids = list(self.page_rep_directory.keys())
             pid_to_flush = choice(pids)
+
+            if not self.page_rep_directory[pid_to_flush].get_in_memory(): continue
+
             flushed = self.flush(pid_to_flush)
 
         self.num_open_page -= 1
         return
 
     def flush(self, pid):
+        # TODO remove from directory
         # TODO add check for pins and return false if being used
         page_rep = self.page_rep_directory[pid]
-        page = self.page_directory[pid]
-        if page_rep.get_memory_offset == -1:
-            # Allocate space
-            pass
+        page = page_rep.get_page()
+        if page.dirty:
+            # We only need to write to disk if the page is dirty
+            if page_rep.get_memory_offset() == -1:
+                self.mem_file.seek(0, 2)
+                # Set the offset to be the end of the file
+                page_rep.set_memory_offset(self.mem_file.tell())
+            else:
+                offset = page_rep.get_memory_offset()
+                # logging.debug("off" + str(offset))
+                self.mem_file.seek(offset)
 
-        data = page.pack()
+            data = page.pack()
 
-        offset = page_rep.get_memory_offset()
-        self.mem_file.seek(offset)
+            self.mem_file.write(data)
+            self.mem_file.flush()
 
-        self.mem_file.write(data)
-        self.mem_file.flush()
+        # logging.debug("flushed:")
+        # logging.debug(page_rep.get_page)
 
-        page_rep.set_in_memory = False
+        page_rep.set_page(None)
+
+        # logging.debug(page_rep.get_page)
+
+        page_rep.set_in_memory(False)
 
         return True
 
@@ -125,6 +145,13 @@ class PageRep:
         self.memory_offset = -1
         self.pins = 0
         self.pin_lock = Lock()
+        self.page = None
+
+    def set_page(self, page):
+        self.page = page
+
+    def get_page(self):
+        return self.page
 
     def set_in_memory(self, is_in_memory):
         self.in_memory = is_in_memory
@@ -139,11 +166,13 @@ class PageRep:
         return self.memory_offset
 
     def place_pin(self):
+        pass
         self.pin_lock.acquire()
         self.pins += 1
         self.pin_lock.release()
 
     def remove_pin(self):
+        pass
         #TODO check if 0 pins already
         self.pin_lock.acquire()
         self.pins -= 1
