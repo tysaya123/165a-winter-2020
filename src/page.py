@@ -58,10 +58,6 @@ class Page:
             self._unpack(record)
             i += format_size
 
-    def get_record(self, i):
-        return struct.unpack(self.record_format,
-                             self.data[i * self.record_size:i * self.record_size + self.record_size])
-
     def update_record(self, key, data):
         self.dirty = True
         if not self.records[key]:

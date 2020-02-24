@@ -118,6 +118,8 @@ class Table:
 
         # Base records that have already been updated.
         already_updated = set()
+
+        # Update the new base records from the records of the tail page.
         for record in records:
             referenced_rid = self.base_rid[record[0]]
             # If we already updated the base record, continue.
@@ -129,7 +131,7 @@ class Table:
             for i, old_pid in enumerate(old_pids):
                 pid = base_page_copies[old_pid]
                 page = self.bufferpool.get_base_page(pid)
-                page.update_record(self.base_rid[record[0]], [1, record[i + 1]])
+                page.update_record(self.base_rid[record[0]], [record[i + 1], 1])
 
         # Now update references to new pages.
         for record in already_updated:
