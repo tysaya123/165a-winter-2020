@@ -145,6 +145,38 @@ class TestTableMethods(TestCase):
         self.assertEqual(vals2, 9)
         self.assertEqual(vals3, 11)
 
+    def testMerge1(self):
+        self.table.insert(1,1,1)
+        for i in range(1000):
+            self.table.update(1, i, None, i + 1)
+        self.table.start_merge()
+
+        vals = self.table.select(1, 1, [1]*3)
+        truth = [Record(0, 0, [999, 1, 1000])]
+
+        self.assertEqual(vals, truth)
+
+    def testMerge2(self):
+        NUM_INSERTS = 300
+        for i in range(NUM_INSERTS):
+            self.table.insert(i, i, i)
+
+        for i in range(NUM_INSERTS):
+            self.table.update(i, i + 1, i + (NUM_INSERTS * 10), i + 2)
+
+        for i in range(100):
+            self.table.start_merge()
+
+        vals = []
+        for i in range(NUM_INSERTS):
+            vals += self.table.select(i + (NUM_INSERTS * 10), 1, [1]*3)
+
+        truths = []
+        for i in range(NUM_INSERTS):
+            truths.append(Record(0, 0, [i + 1, i + (NUM_INSERTS * 10), i+2]))
+
+        self.assertEqual(vals, truths)
+
 class TestBufferPoolMethods(TestCase):
     def setUp(self):
         self.bufferpool = BufferPool()
