@@ -97,6 +97,7 @@ class Table:
         self.tps = records[0][0]
 
         # All the base pages that are referenced in the tail page.
+        # TODO does this check that it points to a base page and not another tail page?
         referenced_pids = set()
         for key in tail_page.records.keys():
             for pid in self.rid_directory[self.base_rid[key]]:
@@ -113,6 +114,7 @@ class Table:
             page = self.bufferpool.get_base_page(pid)
 
             # TODO: Faster way of copying pages than packing / unpacking?
+            # TODO: ^ should be able to something like page.records = copy.deepcopy(old_page.records)
             page.unpack(data)
             base_page_copies[old_pid] = pid
 
