@@ -3,6 +3,8 @@ RID_COLUMN = 1
 TIMESTAMP_COLUMN = 2
 SCHEMA_ENCODING_COLUMN = 3
 
+from queue import Queue
+
 from index import Index
 from page import BasePage
 
@@ -40,12 +42,21 @@ class Table:
         self.num_columns = num_columns
         self.bufferpool = bufferpool
 
+        # For tail records, contains a reference to the base rid belonging to it.
+        self.base_rid = {}
+
+        # Contains a queue of all the full tail pages, for merge purposes.
+        self.full_tail_pages = Queue()
+
+        # Contains the latest merged tail page in the base pages.
+        self.tps = 0
+
         # Maps keys -> rids
         self.indexes = []
         for i in range(num_columns):
             self.indexes.append(Index())
 
-        # Maps rids -> pids
+        # Maps rid -> pids
         self.rid_directory = {}
         # Maps base records to the tail records, rid -> rid
         self.indirection = {}
@@ -67,8 +78,63 @@ class Table:
         self.rid_counter += 1
         return self.rid_counter - 1
 
+    def start_merge(self):
+        if self.full_tail_pages.empty():
+            return
+        self.__merge()
+
     def __merge(self):
-        pass
+        # Grab a tail page to merge.
+        tail_pid = self.full_tail_pages.get(block=True)
+        tail_page = self.bufferpool.get_tail_page(tail_pid, self.num_columns)
+
+        # TODO: Some potential for optimization here.
+        # It is perhaps slow to manually sort the tail records within this
+        # page by tid. There might be a way to get this information faster.
+        records = [[k] + v for k, v in tail_page.records.items()]
+        records = sorted(records, key = lambda x: x[0], reverse=True)
+
+        self.tps = records[0][0]
+
+        # All the base pages that are referenced in the tail page.
+        referenced_pids = set()
+        for key in tail_page.records.keys():
+            for pid in self.rid_directory[self.base_rid[key]]:
+                referenced_pids.add(pid)
+
+        # References from old pids to new pids.
+        base_page_copies = {}
+        for old_pid in referenced_pids:
+            # Copy over old data to new page.
+            old_page = self.bufferpool.get_base_page(old_pid)
+            data = old_page.pack()
+
+            pid = self.bufferpool.new_base_page()
+            page = self.bufferpool.get_base_page(pid)
+
+            # TODO: Faster way of copying pages than packing / unpacking?
+            page.unpack(data)
+            base_page_copies[old_pid] = pid
+
+        # Base records that have already been updated.
+        already_updated = set()
+        for record in records:
+            referenced_rid = self.base_rid[record[0]]
+            # If we already updated the base record, continue.
+            if referenced_rid in already_updated:
+                continue
+            already_updated.add(referenced_rid)
+
+            old_pids = self.rid_directory[referenced_rid]
+            for i, old_pid in enumerate(old_pids):
+                pid = base_page_copies[old_pid]
+                page = self.bufferpool.get_base_page(pid)
+                page.update_record(self.base_rid[record[0]], [1, record[i + 1]])
+
+        # Now update references to new pages.
+        for record in already_updated:
+            self.rid_directory[record] = [base_page_copies[rid] for rid in self.rid_directory[record]]
+
 
     def insert(self, *columns):
         # TODO: Check if record already exists
@@ -113,6 +179,9 @@ class Table:
         for i, rid in enumerate(rids):
             pids = self.rid_directory[rid]
 
+            # If there is an update, see if latest update is merged in already.
+            update_is_merged = self.tps >= self.indirection[rid]
+
             # Result of the select
             vals = []
 
@@ -122,8 +191,9 @@ class Table:
             for pid in pids:
                 page = self.bufferpool.get_base_page(pid)
 
-                # Check the record to see if the dirty bit is 1.
-                if page.get_dirty(rid):
+                # Check the record to if first see if there's an unmerged update,
+                # and if the dirty bit is 1.
+                if not update_is_merged and page.get_dirty(rid):
                     has_dirty_bit = True
                     break
                 vals.append(page.read(rid)[0])
@@ -200,8 +270,10 @@ class Table:
 
         tail_page = self.bufferpool.get_tail_page(self.tail_page_pid, self.num_columns)
 
-        # Allocate new tail page, update references
+        # Allocate new tail page, update references, and store the full tail page.
         if not tail_page.has_capacity():
+            self.full_tail_pages.put(self.tail_page_pid)
+
             new_pid = self.bufferpool.new_tail_page(self.num_columns)
             self.tail_page_pid = new_pid
             tail_page = self.bufferpool.get_tail_page(new_pid, self.num_columns)
@@ -209,6 +281,9 @@ class Table:
         # Create new record in tail page.
         tail_rid = self.new_rid()
         tail_page.new_record(tail_rid, result)
+
+        # Update the reference to the base page.
+        self.base_rid[tail_rid] = rid
 
         # Delete old keys for the indexes.
         for i in range(self.num_columns):
