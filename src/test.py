@@ -1,8 +1,9 @@
-import unittest
 import logging
+import pickle
 import struct
-from unittest import TestCase
+import unittest
 from random import randrange, randint
+from unittest import TestCase
 
 import pdb
 
@@ -60,8 +61,8 @@ class TestPageMethods(TestCase):
         self.base_page.delete_record(self.max_rid)
         self.tail_page.delete_record(self.max_rid)
 
-        self.assertEqual(None, self.base_page.read(self.max_rid))
-        self.assertEqual(None, self.tail_page.read(self.max_rid))
+        self.assertRaises(KeyError, self.base_page.read, self.max_rid)
+        self.assertRaises(KeyError, self.tail_page.read, self.max_rid)
 
     def testPack(self):
         self.base_page.new_record(1, 10, 0)
@@ -80,7 +81,7 @@ class TestPageMethods(TestCase):
         data = bytes()
         data += struct.pack('>Lqb', 5, 50, 1)
         data += struct.pack('>Lqb', 10, 100, 0)
-        data = data.ljust(4096, b'0')
+        data = data.ljust(4096, b'\0')
 
         self.base_page.unpack(data)
 
@@ -94,7 +95,7 @@ class TestPageMethods(TestCase):
 class TestTableMethods(TestCase):
     def setUp(self):
         self.bufferpool = BufferPool()
-        self.table = Table('test', 3, 1, self.bufferpool)
+        self.table = Table(self.bufferpool, 'test', 3, 1)
 
     def tearDown(self):
         self.bufferpool.close_file()
@@ -187,6 +188,29 @@ class TestTableMethods(TestCase):
             truths.append(Record(0, 0, [i + 1, i + (NUM_INSERTS * 10), i+2]))
 
         self.assertEqual(vals, truths)
+
+    def testPickle(self):
+        self.table.insert(2, 2, 3)
+        self.table.insert(2, 3, 4)
+        self.table.insert(2, 4, 4)
+
+        vals1 = self.table.sum(1, 5, 0)
+        vals2 = self.table.sum(1, 5, 1)
+        vals3 = self.table.sum(1, 5, 2)
+
+        data = self.table.dump()
+
+        table2 = Table(bufferpool=self.bufferpool)
+        table2.load(data)
+
+        vals11 = table2.sum(1, 5, 0)
+        vals12 = table2.sum(1, 5, 1)
+        vals13 = table2.sum(1, 5, 2)
+
+        self.assertEqual(self.table, table2)
+        self.assertEqual(vals1, vals11)
+        self.assertEqual(vals2, vals12)
+        self.assertEqual(vals3, vals13)
 
 class TestBufferPoolMethods(TestCase):
     def setUp(self):

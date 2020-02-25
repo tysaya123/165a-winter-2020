@@ -25,7 +25,9 @@ class Page:
         return self.max_records
 
     def read(self, rid):
-        if rid not in self.records: return None
+        if rid not in self.records:
+            raise KeyError('rid not a valid key')
+
         return self.records[rid]
 
     def delete_record(self, rid):
@@ -59,9 +61,10 @@ class Page:
             i += format_size
 
     def update_record(self, key, data):
-        self.dirty = True
         if not self.records[key]:
-            return
+            raise KeyError('rid not a valid key')
+
+        self.dirty = True
         self.records[key] = data
 
 
@@ -73,7 +76,12 @@ class BasePage(Page):
         self.max_records = int(PAGE_SIZE / self.record_size)
 
     def new_record(self, rid, value, dirty):
-        if not self.has_capacity(): return NULL_RID
+        if not self.has_capacity():
+            raise MemoryError('No more space in Page')
+
+        if dirty not in [0, 1]:
+            raise ValueError('Dirty bit not a valid value')
+
         self.dirty = True
         self.records[rid] = [value] + [dirty]
         self.num_records += 1
@@ -83,11 +91,18 @@ class BasePage(Page):
         self.new_record(*values)
 
     def get_dirty(self, rid):
-        if rid not in self.records: return None
+        if rid not in self.records:
+            raise KeyError('rid not valid key')
+
         return self.records[rid][1]
 
     def set_dirty(self, rid, dirty):
-        if rid not in self.records: return 0
+        if rid not in self.records:
+            raise KeyError('rid not valid key')
+
+        if dirty not in [0,1]:
+            raise ValueError('Dirty bit not valid value')
+
         self.dirty = True
         self.records[rid][1] = dirty
         return 1
@@ -96,13 +111,22 @@ class BasePage(Page):
 class TailPage(Page):
     def __init__(self, num_cols):
         super().__init__()
+
+        if num_cols <= 0:
+            raise ValueError('Number of columns cannot be <= 0')
+
         self.num_cols = num_cols
         self.record_size = RID_SIZE + num_cols * VALUE_SIZE
         self.record_format = ENDIAN_FORMAT + RID_FORMAT + num_cols * VALUES_FORMAT
         self.max_records = int(PAGE_SIZE / self.record_size)
 
     def new_record(self, rid, values):
-        if not self.has_capacity(): return NULL_RID
+        if not self.has_capacity():
+            raise MemoryError('No more space in Page')
+
+        if len(values) != self.num_cols:
+            raise ValueError('Number of values not equal to number of columns')
+
         self.dirty = True
         self.records[rid] = values
         self.num_records += 1

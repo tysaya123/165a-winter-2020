@@ -32,6 +32,9 @@ class BufferPool:
         return self.pid_counter - 1
 
     def new_tail_page(self, num_cols):
+        if num_cols <= 0:
+            raise ValueError('Number of columns cannot be <= 0')
+
         page_rep = PageRep()
         page_rep.set_page(TailPage(num_cols))
         page_rep.get_page().dirty = True
