@@ -22,8 +22,8 @@ class Database():
         self.open_tables()
 
     def open_bufferpool(self):
+        file = path.join(self.folder, 'bufferpool.pkl')
         bufferpool = BufferPool(self.folder)
-        file = self.folder + 'bufferpool.pkl'
         if path.isfile(file):
             with open(file, 'r') as f:
                 pkl = pickle.load(f)
@@ -45,14 +45,14 @@ class Database():
         self.close_tables()
 
     def close_bufferpool(self):
-        with open(self.folder + '/' + 'bufferpool.pkl', 'wb') as f:
+        with open(path.join(self.folder, 'bufferpool.pkl'), 'wb') as f:
             self.bufferpool.flush_all()
             pkl = self.bufferpool.dump()
             f.write(pkl)
 
     def close_tables(self):
         for name, table in self.tables.items():
-            with open(self.folder + '/' + name + '_table.pkl', 'wb') as f:
+            with open(path.join(self.folder, name + '_table.pkl'), 'wb') as f:
                 pkl = table.dump()
                 f.write(pkl)
 

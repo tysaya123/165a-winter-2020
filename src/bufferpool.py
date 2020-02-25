@@ -1,8 +1,10 @@
+import logging
 import mmap
 import pickle
+
 from multiprocessing import Lock
 from random import choice
-import logging
+from os import path
 
 from config import PAGE_SIZE, BUFFERPOOL_SIZE
 from page import BasePage, TailPage
@@ -13,7 +15,7 @@ class BufferPool:
         self.pid_counter = 1
 
         self.memory_file_name = "memory_file.txt"
-        self.mem_file = open(folder + '/' + self.memory_file_name, "w+b")
+        self.mem_file = open(path.join(folder, self.memory_file_name), "w+b")
         # When num_open_memory > BUFFERPOOL_SIZE then begin evicting
         self.num_open_page = 0
 
