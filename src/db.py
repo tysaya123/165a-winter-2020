@@ -25,9 +25,9 @@ class Database():
         file = path.join(self.folder, 'bufferpool.pkl')
         bufferpool = BufferPool(self.folder)
         if path.isfile(file):
-            with open(file, 'r') as f:
-                pkl = pickle.load(f)
-                bufferpool.dump(pkl)
+            with open(file, 'rb') as f:
+                pkl = f.read()
+                bufferpool.load(pkl)
         self.bufferpool = bufferpool
 
     def open_tables(self):
