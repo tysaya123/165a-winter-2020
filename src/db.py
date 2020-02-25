@@ -4,6 +4,7 @@ from os import listdir, path, mkdir
 import pickle
 import glob
 
+
 class Database():
 
     def __init__(self):
@@ -22,11 +23,11 @@ class Database():
 
     def open_bufferpool(self):
         file = path.join(self.folder, 'bufferpool.pkl')
-        with open( file, 'r') as f:
-            bufferpool = BufferPool(self.folder)
+        bufferpool = BufferPool(self.folder)
+        with open(file, 'r') as f:
             pkl = pickle.load(f)
             bufferpool.dump(pkl)
-            self.bufferpool = bufferpool
+        self.bufferpool = bufferpool
 
     def open_tables(self):
         files = glob(path.join(self.folder, '*_table.pkl'))
@@ -38,12 +39,13 @@ class Database():
                 self.tables[table.name] = table
 
     def close(self):
+        # TODO join merges
         self.close_bufferpool()
         self.close_tables()
 
     def close_bufferpool(self):
         with open(path.join(self.folder, 'bufferpool.pkl'), 'wb') as f:
-            bufferpool.flush_all()
+            self.bufferpool.flush_all()
             pkl = self.bufferpool.dump()
             f.write(pkl)
 
@@ -52,12 +54,14 @@ class Database():
             with open(path.join(self.folder, name + '_table.pkl'), 'wb') as f:
                 pkl = table.dump()
                 f.write(pkl)
+
     """
     # Creates a new table
     :param name: string         #Table name
     :param num_columns: int     #Number of Columns: all columns are integer
     :param key: int             #Index of table key in columns
     """
+
     def create_table(self, name, num_columns, key):
         table = Table(self.bufferpool, name, num_columns, key)
         self.tables[name] = table
@@ -66,5 +70,6 @@ class Database():
     """
     # Deletes the specified table
     """
+
     def drop_table(self, name):
         del self.tables[name]
