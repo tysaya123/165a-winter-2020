@@ -21,17 +21,17 @@ class Database():
         self.open_tables()
 
     def open_bufferpool(self):
-        file = self.folder + 'bufferpool.pkl'
-        with open( file, 'r' ) as f:
+        file = path.join(self.folder, 'bufferpool.pkl')
+        with open( file, 'r') as f:
             bufferpool = BufferPool(self.folder)
             pkl = pickle.load(f)
             bufferpool.dump(pkl)
             self.bufferpool = bufferpool
 
     def open_tables(self):
-        files = glob(self.folder + '*_table.pkl')
+        files = glob(path.join(self.folder, '*_table.pkl'))
         for file in files:
-            with open(folder + '/' + file, 'r') as f:
+            with open(path.join(folder, file), 'r') as f:
                 table = Table(self.bufferpool)
                 pkl = pickle.load(f)
                 table.dump(pkl)
@@ -42,14 +42,14 @@ class Database():
         self.close_tables()
 
     def close_bufferpool(self):
-        with open(self.folder + '/' + 'bufferpool.pkl', 'wb') as f:
+        with open(path.join(self.folder, 'bufferpool.pkl'), 'wb') as f:
             bufferpool.flush_all()
             pkl = self.bufferpool.dump()
             f.write(pkl)
 
     def close_tables(self):
         for name, table in self.tables.items():
-            with open(self.folder + '/' + name + '_table.pkl', 'wb') as f:
+            with open(path.join(self.folder, name + '_table.pkl'), 'wb') as f:
                 pkl = table.dump()
                 f.write(pkl)
     """
