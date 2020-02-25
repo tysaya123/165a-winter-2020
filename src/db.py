@@ -43,6 +43,7 @@ class Database():
 
     def close_bufferpool(self):
         with open(self.folder + '/' + 'bufferpool.pkl', 'wb') as f:
+            bufferpool.flush_all()
             pkl = self.bufferpool.dump()
             f.write(pkl)
 

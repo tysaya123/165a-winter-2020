@@ -1,4 +1,5 @@
 import mmap
+import pickle
 from multiprocessing import Lock
 from random import choice
 import logging
@@ -116,6 +117,10 @@ class BufferPool:
         self.num_open_page -= 1
         return
 
+    def flush_all(self):
+        for pid in self.page_rep_directory:
+            flush(pid)
+
     def flush(self, pid):
         # TODO remove from directory
         # TODO add check for pins and return false if being used
@@ -158,6 +163,14 @@ class BufferPool:
 
     def close_file(self):
         self.mem_file.close()
+
+    def dump(self):
+        data = [self.page_rep_directory, self.pid_counter]
+
+        return pickle.dumps(data)
+
+    def load(self, data):
+        [self.page_rep_directory, self.pid_counter] = pickle.loads(data)
 
 
 class PageRep:
