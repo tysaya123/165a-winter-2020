@@ -60,8 +60,8 @@ class TestPageMethods(TestCase):
         self.base_page.delete_record(self.max_rid)
         self.tail_page.delete_record(self.max_rid)
 
-        self.assertEqual(None, self.base_page.read(self.max_rid))
-        self.assertEqual(None, self.tail_page.read(self.max_rid))
+        self.assertRaises(KeyError, self.base_page.read, self.max_rid)
+        self.assertRaises(KeyError, self.tail_page.read, self.max_rid)
 
     def testPack(self):
         self.base_page.new_record(1, 10, 0)
@@ -80,7 +80,7 @@ class TestPageMethods(TestCase):
         data = bytes()
         data += struct.pack('>Lqb', 5, 50, 1)
         data += struct.pack('>Lqb', 10, 100, 0)
-        data = data.ljust(4096, b'0')
+        data = data.ljust(4096, b'\0')
 
         self.base_page.unpack(data)
 
