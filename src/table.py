@@ -117,6 +117,8 @@ class Table:
             for pid in self.rid_directory[self.base_rid[key]]:
                 referenced_pids.add(pid)
 
+        self.bufferpool.close_page(tail_pid)
+
         # References from old pids to new pids.
         base_page_copies = {}
         for old_pid in referenced_pids:
@@ -126,11 +128,12 @@ class Table:
             pid = self.bufferpool.new_base_page()
             page = self.bufferpool.get_base_page(pid)
 
-            # TODO: Faster way of copying pages than packing / unpacking?
-            # TODO: ^ should be able to something like page.records = copy.deepcopy(old_page.records)
             page.records = copy.deepcopy(old_page.records)
 
             base_page_copies[old_pid] = pid
+
+            self.bufferpool.close_page(old_pid)
+            self.bufferpool.close_page(pid)
 
         # Base records that have already been updated.
         already_updated = set()
@@ -148,6 +151,7 @@ class Table:
                 pid = base_page_copies[old_pid]
                 page = self.bufferpool.get_base_page(pid)
                 page.update_record(self.base_rid[record[0]], [record[i + 1], 1])
+                self.bufferpool.close_page(pid)
 
         # Now update references to new pages.
         for record in already_updated:
@@ -163,18 +167,22 @@ class Table:
 
         for i, base_page in enumerate(self.base_page_pids):
 
+            pid = base_page
             page = self.bufferpool.get_base_page(base_page)
 
             # Check to see if base page for column has space. If not, allocate
             # new page, and update references to it.
             if not page.has_capacity():
+                self.bufferpool.close_page(base_page)
                 new_pid = self.bufferpool.new_base_page()
                 self.base_page_pids[i] = new_pid
+                page = self.bufferpool.get_base_page(new_pid)
+                pid = new_pid
 
             # Write to the base page
             page_id = self.base_page_pids[i]
-            base_page = self.bufferpool.get_base_page(page_id)
-            base_page.new_record(rid, columns[i], 0)
+            page.new_record(rid, columns[i], 0)
+            self.bufferpool.close_page(pid)
 
             # Create reference from the record id to the page for it
             rids.append(page_id)
@@ -213,8 +221,10 @@ class Table:
                 # and if the dirty bit is 1.
                 if not update_is_merged and page.get_dirty(rid):
                     has_dirty_bit = True
+                    self.bufferpool.close_page(pid)
                     break
                 vals.append(page.read(rid)[0])
+                self.bufferpool.close_page(pid)
 
             # If record has a dirty bit, pull the tail page, and get the values
             # from there. If not, then pull the values from the base pages.
@@ -223,6 +233,7 @@ class Table:
                 tail_rid = self.indirection[rid]
                 tail_page = self.bufferpool.get_tail_page(self.rid_directory[tail_rid], self.num_columns)
                 vals = list(tail_page.read(tail_rid))
+                self.bufferpool.close_page(self.rid_directory[tail_rid])
 
             records.append(Record(rid, i, vals))
 
@@ -243,6 +254,7 @@ class Table:
         for pid in pids:
             curr_page = self.bufferpool.get_base_page(pid)
             curr_page.delete_record(base_rid)
+            self.bufferpool.close_page(pid)
 
         # Loop through the cycle of records
         curr_rid = base_rid
@@ -260,6 +272,7 @@ class Table:
             curr_page = self.bufferpool.get_tail_page(curr_pid, self.num_columns)
 
             curr_page.delete_record(curr_rid)
+            self.bufferpool.close_page(curr_pid)
 
     def update(self, key, *columns):
         rid = self.indexes[self.key_index].get(key)[0]
@@ -285,20 +298,25 @@ class Table:
         for pid in pids:
             page = self.bufferpool.get_base_page(pid)
             page.set_dirty(rid, 1)
+            self.bufferpool.close_page(pid)
 
+        pid = self.tail_page_pid
         tail_page = self.bufferpool.get_tail_page(self.tail_page_pid, self.num_columns)
 
         # Allocate new tail page, update references, and store the full tail page.
         if not tail_page.has_capacity():
+            self.bufferpool.close_page(self.tail_page_pid)
             self.full_tail_pages.put(self.tail_page_pid)
 
             new_pid = self.bufferpool.new_tail_page(self.num_columns)
             self.tail_page_pid = new_pid
             tail_page = self.bufferpool.get_tail_page(new_pid, self.num_columns)
+            pid = new_pid
 
         # Create new record in tail page.
         tail_rid = self.new_rid()
         tail_page.new_record(tail_rid, result)
+        self.bufferpool.close_page(pid)
 
         # Update the reference to the base page.
         self.base_rid[tail_rid] = rid
