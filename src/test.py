@@ -212,6 +212,39 @@ class TestTableMethods(TestCase):
         self.assertEqual(vals2, vals12)
         self.assertEqual(vals3, vals13)
 
+    def testPickle2(self):
+        NUM_INSERTS = 300
+        for i in range(NUM_INSERTS):
+            self.table.insert(i, i, i)
+
+        for i in range(NUM_INSERTS):
+            self.table.update(i, i + 1, i + (NUM_INSERTS * 10), i + 2)
+
+        data = self.table.dump()
+
+        table2 = Table(bufferpool=self.bufferpool)
+        table2.load(data)
+
+        self.assertEqual(self.table, table2)
+
+        for i in range(100):
+            self.table.start_merge()
+            table2.start_merge()
+
+        vals = []
+        vals2 = []
+        for i in range(NUM_INSERTS):
+            vals += self.table.select(i + (NUM_INSERTS * 10), 1, [1]*3)
+            vals2 += table2.select(i + (NUM_INSERTS * 10), 1, [1]*3)
+
+        truths = []
+        for i in range(NUM_INSERTS):
+            truths.append(Record(0, 0, [i + 1, i + (NUM_INSERTS * 10), i+2]))
+
+        self.assertEqual(vals, truths)
+        self.assertEqual(vals2, truths)
+
+
 class TestBufferPoolMethods(TestCase):
     def setUp(self):
         self.bufferpool = BufferPool()
