@@ -21,7 +21,7 @@ class Database():
     :param key: int             #Index of table key in columns
     """
     def create_table(self, name, num_columns, key):
-        table = Table(name, num_columns, key, self.bufferpool)
+        table = Table(self.bufferpool, name, num_columns, key)
         self.tables[name] = table
         return table
 

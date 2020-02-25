@@ -9,6 +9,9 @@ class Index:
     def get(self, key):
         return self.index.get(key)
 
+    def __eq__(self, other):
+        return self.index == other.index
+
     """
         # set function appends the rid to a list of rids from given key
     """

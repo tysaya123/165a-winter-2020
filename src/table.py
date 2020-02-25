@@ -4,6 +4,7 @@ TIMESTAMP_COLUMN = 2
 SCHEMA_ENCODING_COLUMN = 3
 
 import copy
+import pickle
 from queue import Queue
 
 from index import Index
@@ -37,17 +38,21 @@ class Table:
     :param bufferpool: BufferPool   #Reference to the global bufferpool
     """
 
-    def __init__(self, name, num_columns, key_index, bufferpool):
+    def __init__(self, bufferpool, name = None, num_columns = None, key_index = None):
         self.name = name
         self.key_index = key_index
         self.num_columns = num_columns
         self.bufferpool = bufferpool
 
-        # For tail records, contains a reference to the base rid belonging to it.
-        self.base_rid = {}
-
         # Contains a queue of all the full tail pages, for merge purposes.
         self.full_tail_pages = Queue()
+
+        # This happens when initializing from a pickled file.
+        if name is None:
+            return
+
+        # For tail records, contains a reference to the base rid belonging to it.
+        self.base_rid = {}
 
         # Contains the latest merged tail page in the base pages.
         self.tps = 0
@@ -74,6 +79,14 @@ class Table:
         # Initialize base pages
         for i in range(self.num_columns):
             self.base_page_pids[i] = bufferpool.new_base_page()
+
+    def __eq__(self, other):
+        return (self.name == other.name and self.num_columns == other.num_columns
+               and self.key_index == other.key_index and self.base_rid == other.base_rid
+               and self.tps == other.tps and self.indexes == other.indexes
+               and self.rid_directory == other.rid_directory and self.indirection == other.indirection
+               and self.base_page_pids == other.base_page_pids and self.tail_page_pid == other.tail_page_pid
+               and self.rid_counter == other.rid_counter and self.full_tail_pages.qsize() == other.full_tail_pages.qsize())
 
     def new_rid(self):
         self.rid_counter += 1
@@ -311,3 +324,28 @@ class Table:
                 result += vals[0].columns[aggregate_column]
 
         return result
+
+    def dump(self):
+        full_tail_pages = []
+        try:
+            while True:
+                full_tail_pages.append(self.full_tail_pages.get(block=False))
+        except:
+            pass
+
+        data = [self.name, self.key_index, self.num_columns, self.base_rid, full_tail_pages,
+                self.tps, self.indexes, self.rid_directory, self.indirection, self.base_page_pids,
+                self.tail_page_pid, self.rid_counter]
+
+        return pickle.dumps(data)
+
+    def load(self, data):
+        full_tail_pages = []
+
+        [self.name, self.key_index, self.num_columns, self.base_rid, full_tail_pages,
+         self.tps, self.indexes, self.rid_directory, self.indirection, self.base_page_pids,
+         self.tail_page_pid, self.rid_counter] = pickle.loads(data)
+
+        self.full_tail_pages = Queue()
+        while len(full_tail_pages) > 0:
+            self.full_tail_pages.put(full_tail_pages.pop())
