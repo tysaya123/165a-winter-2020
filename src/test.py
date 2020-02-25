@@ -2,6 +2,8 @@ import logging
 import pickle
 import struct
 import unittest
+import shutil
+from os import path, remove
 from random import randrange, randint
 from unittest import TestCase
 
@@ -94,11 +96,14 @@ class TestPageMethods(TestCase):
 
 class TestTableMethods(TestCase):
     def setUp(self):
-        self.bufferpool = BufferPool()
+        folder = path.expanduser("~/test")
+        self.bufferpool = BufferPool(folder)
         self.table = Table(self.bufferpool, 'test', 3, 1)
 
     def tearDown(self):
         self.bufferpool.close_file()
+        folder = path.expanduser("~/test")
+        remove(folder + '/memory_file.txt')
 
     def testInsert1(self):
         self.table.insert(2, 2, 3)
@@ -247,10 +252,14 @@ class TestTableMethods(TestCase):
 
 class TestBufferPoolMethods(TestCase):
     def setUp(self):
-        self.bufferpool = BufferPool()
+        folder = path.expanduser("~/test")
+        self.bufferpool = BufferPool(folder)
 
     def tearDown(self):
         self.bufferpool.close_file()
+        folder = path.expanduser("~/test")
+        remove(folder + '/memory_file.txt')
+
 
     def testNewBasePage(self):
         pid = self.bufferpool.new_base_page()
@@ -311,6 +320,9 @@ class TestBufferPoolMethods(TestCase):
 class TestDbMethods(TestCase):
     def setUp(self):
         self.db = Database()
+        folder = path.expanduser("~/test")
+        shutil.rmtree(folder, ignore_errors=True)
+        self.db.open("~/test")
 
     def tearDown(self):
         self.db.close()

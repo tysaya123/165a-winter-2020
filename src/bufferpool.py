@@ -9,12 +9,12 @@ from page import BasePage, TailPage
 
 
 class BufferPool:
-    def __init__(self):
+    def __init__(self, folder):
         self.page_rep_directory = {}
         self.pid_counter = 1
 
         self.memory_file_name = "memory_file.txt"
-        self.mem_file = open(self.memory_file_name, "w+b")
+        self.mem_file = open(folder + '/' + self.memory_file_name, "w+b")
         # When num_open_memory > BUFFERPOOL_SIZE then begin evicting
         self.num_open_page = 0
 
@@ -106,13 +106,17 @@ class BufferPool:
 
     def flush_all(self):
         for pid in self.page_rep_directory:
-            flush(pid)
+            page_rep = self.page_rep_directory[pid]
+            if page_rep.get_in_memory():
+                self.flush(pid)
 
     def flush(self, pid):
         # TODO remove from directory
         # TODO add check for pins and return false if being used
         page_rep = self.page_rep_directory[pid]
         page = page_rep.get_page()
+        if page is None:
+            raise TypeError("Expected page in flush but got none")
         if page.dirty:
             # We only need to write to disk if the page is dirty
             if page_rep.get_memory_offset() == -1:
@@ -147,6 +151,12 @@ class BufferPool:
         self.mem_file.close()
 
     def dump(self):
+        self.close_file()
+        for pid, page_rep in self.page_rep_directory.items():
+            if page_rep.pins != 0:
+                raise ValueException("Page Rep had non-zero pin count while dumping")
+            page_rep.pin_lock = None
+
         data = [self.page_rep_directory, self.pid_counter]
 
         return pickle.dumps(data)
