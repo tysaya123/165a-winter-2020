@@ -3,6 +3,7 @@ import pickle
 import struct
 import unittest
 import shutil
+
 from os import path, remove
 from random import randrange, randint
 from unittest import TestCase
@@ -91,7 +92,13 @@ class TestPageMethods(TestCase):
         self.assertEqual(self.base_page.read(10), [100, 0])
 
     def testPackUnpack(self):
-        pass
+        self.base_page.new_record(1, 10, 0)
+        self.base_page.new_record(2, 50, 1)
+
+        page = BasePage()
+        page.unpack(self.base_page.pack())
+
+        self.assertEqual(self.base_page, page)
 
 
 class TestTableMethods(TestCase):
@@ -103,7 +110,7 @@ class TestTableMethods(TestCase):
     def tearDown(self):
         self.bufferpool.close_file()
         folder = path.expanduser("~/test")
-        remove(folder + '/memory_file.txt')
+        remove(path.join(folder, 'memory_file.txt'))
 
     def testInsert1(self):
         self.table.insert(2, 2, 3)
@@ -258,7 +265,7 @@ class TestBufferPoolMethods(TestCase):
     def tearDown(self):
         self.bufferpool.close_file()
         folder = path.expanduser("~/test")
-        remove(folder + '/memory_file.txt')
+        remove(path.join(folder, 'memory_file.txt'))
 
 
     def testNewBasePage(self):

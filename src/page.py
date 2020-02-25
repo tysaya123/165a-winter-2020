@@ -67,6 +67,10 @@ class Page:
         self.dirty = True
         self.records[key] = data
 
+    def __eq__(self, other):
+        return (self.num_records == other.num_records and self.records == other.records
+            and self.record_size == other.record_size and self.record_format == other.record_format
+            and self.max_records == other.max_records and self.dirty == other.dirty)
 
 class BasePage(Page):
     def __init__(self):
