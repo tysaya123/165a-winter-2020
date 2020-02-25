@@ -256,6 +256,7 @@ class TestBufferPoolMethods(TestCase):
         pid = self.bufferpool.new_base_page()
         page = self.bufferpool.get_base_page(pid)
         page.new_record(0, 1, 0)
+        self.bufferpool.close_page(pid)
 
         self.assertEqual(page.read(0), [1, 0])
 
@@ -263,6 +264,7 @@ class TestBufferPoolMethods(TestCase):
         pid = self.bufferpool.new_tail_page(3)
         page = self.bufferpool.get_tail_page(pid, 3)
         page.new_record(0, [1,2,3])
+        self.bufferpool.close_page(pid)
 
         self.assertEqual(page.read(0), [1,2,3])
 
@@ -277,14 +279,18 @@ class TestBufferPoolMethods(TestCase):
 
         for val in vals:
             if not page.has_capacity():
+                self.bufferpool.close_page(pid)
                 pid = self.bufferpool.new_base_page()
                 page = self.bufferpool.get_base_page(pid)
             page.new_record(*val)
             page_pids.append(pid)
 
+        self.bufferpool.close_page(pid)
+
         for i, val in enumerate(vals):
             page = self.bufferpool.get_base_page(page_pids[i])
             page_vals = page.read(val[0])
+            self.bufferpool.close_page(page_pids[i])
             self.assertEqual(page_vals, val[1:])
 
     def testManyTailRecords(self):
@@ -298,19 +304,24 @@ class TestBufferPoolMethods(TestCase):
 
         for val in vals:
             if not page.has_capacity():
+                self.bufferpool.close_page(pid)
                 pid = self.bufferpool.new_tail_page(3)
                 page = self.bufferpool.get_tail_page(pid, 3)
             page.new_record(val[0], val[1:])
             page_pids.append(pid)
 
+        self.bufferpool.close_page(pid)
+
         for i, val in enumerate(vals):
             page = self.bufferpool.get_tail_page(page_pids[i], 3)
             page_vals = page.read(val[0])
+            self.bufferpool.close_page(page_pids[i])
             self.assertEqual(page_vals, val[1:])
 
 class TestDbMethods(TestCase):
     def setUp(self):
         self.db = Database()
+        self.db.open('test_dir')
 
     def tearDown(self):
         self.db.close()

@@ -21,6 +21,7 @@ class BufferPool:
         page_rep = PageRep()
         page_rep.set_page(BasePage())
         page_rep.get_page().dirty = True
+        page_rep.close_page()
 
         if self.num_open_page >= BUFFERPOOL_SIZE:
             # logging.debug("not enough space")
@@ -38,6 +39,7 @@ class BufferPool:
         page_rep = PageRep()
         page_rep.set_page(TailPage(num_cols))
         page_rep.get_page().dirty = True
+        page_rep.close_page()
 
         if self.num_open_page >= BUFFERPOOL_SIZE:
             # logging.debug("not enough space")
@@ -58,9 +60,13 @@ class BufferPool:
         page = self.get_page(pid, page)
         return page
 
+    def close_page(self, pid):
+        if self.page_rep_directory[pid] is None:
+            raise KeyError('Page with pid {} does not exist'.format(pid))
+        self.page_rep_directory[pid].remove_pin()
+
     def get_page(self, pid, page):
         page_rep = self.page_rep_directory[pid]
-        # page_rep.place_pin()
 
         # logging.debug(pid)
 
@@ -82,7 +88,13 @@ class BufferPool:
         self.page_rep_directory[pid].set_page(page)
         page_rep.set_in_memory(True)
 
+        page = self.page_rep_directory[pid].get_page()
+
         return page
+
+    def close_page(self, pid):
+        page_rep = self.page_rep_directory[pid]
+        page_rep.remove_pin()
 
     def read_page_from_memory(self, page_rep):
         offset = page_rep.get_memory_offset()
@@ -96,7 +108,8 @@ class BufferPool:
             pids = list(self.page_rep_directory.keys())
             pid_to_flush = choice(pids)
 
-            if not self.page_rep_directory[pid_to_flush].get_in_memory(): continue
+            page_rep = self.page_rep_directory[pid_to_flush]
+            if not page_rep.get_in_memory() or page_rep.pins > 0: continue
 
             flushed = self.flush(pid_to_flush)
 
@@ -107,6 +120,10 @@ class BufferPool:
         # TODO remove from directory
         # TODO add check for pins and return false if being used
         page_rep = self.page_rep_directory[pid]
+
+        if page_rep.pins > 0:
+            raise ValueError('Cannot flush a page that is pinned')
+
         page = page_rep.get_page()
         if page.dirty:
             # We only need to write to disk if the page is dirty
@@ -132,6 +149,7 @@ class BufferPool:
         # logging.debug(page_rep.get_page)
 
         page_rep.set_in_memory(False)
+        page_rep.close_page()
 
         return True
 
@@ -147,14 +165,18 @@ class PageRep:
         self.in_memory = True
         self.memory_offset = -1
         self.pins = 0
-        self.pin_lock = Lock()
+        #self.pin_lock = Lock()
         self.page = None
 
     def set_page(self, page):
         self.page = page
 
     def get_page(self):
+        self.place_pin()
         return self.page
+
+    def close_page(self):
+        self.remove_pin()
 
     def set_in_memory(self, is_in_memory):
         self.in_memory = is_in_memory
@@ -169,14 +191,13 @@ class PageRep:
         return self.memory_offset
 
     def place_pin(self):
-        pass
-        self.pin_lock.acquire()
+        #self.pin_lock.acquire()
         self.pins += 1
-        self.pin_lock.release()
+        #self.pin_lock.release()
 
     def remove_pin(self):
-        pass
-        #TODO check if 0 pins already
-        self.pin_lock.acquire()
+        if self.pins == 0:
+            raise ValueError('Number of pins cannot be less than 0')
+        #self.pin_lock.acquire()
         self.pins -= 1
-        self.pin_lock.release()
+        #self.pin_lock.release()
