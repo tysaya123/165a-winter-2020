@@ -3,6 +3,7 @@ RID_COLUMN = 1
 TIMESTAMP_COLUMN = 2
 SCHEMA_ENCODING_COLUMN = 3
 
+import copy
 from queue import Queue
 
 from index import Index
