@@ -1,8 +1,8 @@
 from table import Table
 from bufferpool import BufferPool
 from os import listdir, path, mkdir
+from glob import glob
 import pickle
-import glob
 
 
 class Database():
@@ -22,20 +22,21 @@ class Database():
         self.open_tables()
 
     def open_bufferpool(self):
-        file = self.folder + 'bufferpool.pkl'
         bufferpool = BufferPool(self.folder)
-        with open(file, 'r') as f:
-            pkl = pickle.load(f)
-            bufferpool.dump(pkl)
+        file = self.folder + 'bufferpool.pkl'
+        if path.isfile(file):
+            with open(file, 'r') as f:
+                pkl = pickle.load(f)
+                bufferpool.dump(pkl)
         self.bufferpool = bufferpool
 
     def open_tables(self):
-        files = glob(self.folder + '*_table.pkl')
+        files = glob(path.join(self.folder, '*_table.pkl'))
         for file in files:
-            with open(folder + '/' + file, 'r') as f:
+            with open(file, 'rb') as f:
                 table = Table(self.bufferpool)
-                pkl = pickle.load(f)
-                table.dump(pkl)
+                pkl = f.read()
+                table.load(pkl)
                 self.tables[table.name] = table
 
     def close(self):
@@ -73,3 +74,12 @@ class Database():
 
     def drop_table(self, name):
         del self.tables[name]
+
+
+    """
+    # Return an existing table
+    :param name: string         #Table name
+    """
+
+    def get_table(self, name):
+        return self.tables[name]

@@ -7,7 +7,6 @@ import logging
 from config import PAGE_SIZE, BUFFERPOOL_SIZE
 from page import BasePage, TailPage
 
-
 class BufferPool:
     def __init__(self, folder):
         self.page_rep_directory = {}

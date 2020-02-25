@@ -115,11 +115,11 @@ class TestTableMethods(TestCase):
         self.table.insert(2, 3, 4)
         self.table.insert(2, 4, 4)
 
-        vals1 = self.table.select(2, 1, [1]*3)
+        vals1 = self.table.select(2, 1, [1] * 3)
         truth1 = [Record(0, 0, [2, 2, 3])]
 
-        vals2 = self.table.select(2, 0, [1]*3)
-        truth2 = [Record(0, 0, [2,2,3]), Record(0, 0, [2,3,4]), Record(0, 0, [2, 4, 4])]
+        vals2 = self.table.select(2, 0, [1] * 3)
+        truth2 = [Record(0, 0, [2, 2, 3]), Record(0, 0, [2, 3, 4]), Record(0, 0, [2, 4, 4])]
 
         self.assertEqual(vals1, truth1)
         self.assertEqual(vals2, truth2)
@@ -132,8 +132,8 @@ class TestTableMethods(TestCase):
         self.table.update(2, None, 2, 5)
         self.table.update(4, 2, 5, None)
 
-        vals2 = self.table.select(2, 0, [1]*3)
-        truth2 = [Record(0, 0, [2,2,5]), Record(0, 0, [2,3,4]), Record(0, 0, [2, 5, 4])]
+        vals2 = self.table.select(2, 0, [1] * 3)
+        truth2 = [Record(0, 0, [2, 2, 5]), Record(0, 0, [2, 3, 4]), Record(0, 0, [2, 5, 4])]
 
         self.assertEqual(vals2, truth2)
 
@@ -144,8 +144,8 @@ class TestTableMethods(TestCase):
 
         self.table.delete(2)
 
-        vals2 = self.table.select(2, 0, [1]*3)
-        truth2 = [Record(0, 0, [2,3,4]), Record(0, 0, [2, 4, 4])]
+        vals2 = self.table.select(2, 0, [1] * 3)
+        truth2 = [Record(0, 0, [2, 3, 4]), Record(0, 0, [2, 4, 4])]
 
         self.assertEqual(vals2, truth2)
 
@@ -163,12 +163,12 @@ class TestTableMethods(TestCase):
         self.assertEqual(vals3, 11)
 
     def testMerge1(self):
-        self.table.insert(1,1,1)
+        self.table.insert(1, 1, 1)
         for i in range(1000):
             self.table.update(1, i, None, i + 1)
         self.table.start_merge()
 
-        vals = self.table.select(1, 1, [1]*3)
+        vals = self.table.select(1, 1, [1] * 3)
         truth = [Record(0, 0, [999, 1, 1000])]
 
         self.assertEqual(vals, truth)
@@ -186,11 +186,11 @@ class TestTableMethods(TestCase):
 
         vals = []
         for i in range(NUM_INSERTS):
-            vals += self.table.select(i + (NUM_INSERTS * 10), 1, [1]*3)
+            vals += self.table.select(i + (NUM_INSERTS * 10), 1, [1] * 3)
 
         truths = []
         for i in range(NUM_INSERTS):
-            truths.append(Record(0, 0, [i + 1, i + (NUM_INSERTS * 10), i+2]))
+            truths.append(Record(0, 0, [i + 1, i + (NUM_INSERTS * 10), i + 2]))
 
         self.assertEqual(vals, truths)
 
@@ -239,12 +239,12 @@ class TestTableMethods(TestCase):
         vals = []
         vals2 = []
         for i in range(NUM_INSERTS):
-            vals += self.table.select(i + (NUM_INSERTS * 10), 1, [1]*3)
-            vals2 += table2.select(i + (NUM_INSERTS * 10), 1, [1]*3)
+            vals += self.table.select(i + (NUM_INSERTS * 10), 1, [1] * 3)
+            vals2 += table2.select(i + (NUM_INSERTS * 10), 1, [1] * 3)
 
         truths = []
         for i in range(NUM_INSERTS):
-            truths.append(Record(0, 0, [i + 1, i + (NUM_INSERTS * 10), i+2]))
+            truths.append(Record(0, 0, [i + 1, i + (NUM_INSERTS * 10), i + 2]))
 
         self.assertEqual(vals, truths)
         self.assertEqual(vals2, truths)
@@ -260,7 +260,6 @@ class TestBufferPoolMethods(TestCase):
         folder = path.expanduser("~/test")
         remove(folder + '/memory_file.txt')
 
-
     def testNewBasePage(self):
         pid = self.bufferpool.new_base_page()
         page = self.bufferpool.get_base_page(pid)
@@ -272,10 +271,10 @@ class TestBufferPoolMethods(TestCase):
     def testNewTailPage(self):
         pid = self.bufferpool.new_tail_page(3)
         page = self.bufferpool.get_tail_page(pid, 3)
-        page.new_record(0, [1,2,3])
+        page.new_record(0, [1, 2, 3])
         self.bufferpool.close_page(pid)
 
-        self.assertEqual(page.read(0), [1,2,3])
+        self.assertEqual(page.read(0), [1, 2, 3])
 
     def testManyBaseRecords(self):
         vals = []
@@ -327,6 +326,7 @@ class TestBufferPoolMethods(TestCase):
             self.bufferpool.close_page(page_pids[i])
             self.assertEqual(page_vals, val[1:])
 
+
 class TestDbMethods(TestCase):
     def setUp(self):
         self.db = Database()
@@ -336,6 +336,8 @@ class TestDbMethods(TestCase):
 
     def tearDown(self):
         self.db.close()
+        folder = path.expanduser("~/test")
+        shutil.rmtree(folder, ignore_errors=True)
 
     def testTwoTables(self):
         table1 = self.db.create_table('table1', 5, 2)
@@ -345,13 +347,60 @@ class TestDbMethods(TestCase):
         query2 = Query(table2)
 
         query1.insert(1, 2, 3, 4, 5)
-        query2.insert(11,12,13,14,15,16,17)
+        query2.insert(11, 12, 13, 14, 15, 16, 17)
 
-        vals1 = query1.select(3, 2, [1]*5)[0].columns
-        vals2 = query2.select(15, 4, [1]*7)[0].columns
+        vals1 = query1.select(3, 2, [1] * 5)[0].columns
+        vals2 = query2.select(15, 4, [1] * 7)[0].columns
 
-        self.assertEqual(vals1, [1,2,3,4,5])
-        self.assertEqual(vals2, [11,12,13,14,15,16,17])
+        self.assertEqual(vals1, [1, 2, 3, 4, 5])
+        self.assertEqual(vals2, [11, 12, 13, 14, 15, 16, 17])
+
+
+class TestDbOpenClose(TestCase):
+    def testTwoTables(self):
+        # Open the db and insert a few rows
+        db = Database()
+        folder = path.expanduser("~/test")
+        db.open("~/test")
+
+        table1 = db.create_table('table1', 5, 2)
+        table2 = db.create_table('table2', 7, 4)
+
+        query1 = Query(table1)
+        query2 = Query(table2)
+
+        query1.insert(1, 2, 3, 4, 5)
+        query2.insert(11, 12, 13, 14, 15, 16, 17)
+
+        vals1 = query1.select(3, 2, [1] * 5)[0].columns
+        vals2 = query2.select(15, 4, [1] * 7)[0].columns
+
+        self.assertEqual(vals1, [1, 2, 3, 4, 5])
+        self.assertEqual(vals2, [11, 12, 13, 14, 15, 16, 17])
+
+        db.close()
+
+        db = None
+
+        # Open the db again and perform the same asserts as before to check they are still there
+        db = Database()
+        folder = path.expanduser("~/test")
+        db.open("~/test")
+
+        table1 = db.get_table('table1')
+        table2 = db.get_table('table2')
+
+        query1 = Query(table1)
+        query2 = Query(table2)
+
+        vals1 = query1.select(3, 2, [1] * 5)[0].columns
+        vals2 = query2.select(15, 4, [1] * 7)[0].columns
+
+        self.assertEqual(vals1, [1, 2, 3, 4, 5])
+        self.assertEqual(vals2, [11, 12, 13, 14, 15, 16, 17])
+
+        db.close()
+        shutil.rmtree(folder, ignore_errors=True)
 
 
 if __name__ == '__main__':
