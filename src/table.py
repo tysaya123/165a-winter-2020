@@ -326,12 +326,7 @@ class Table:
         return result
 
     def dump(self):
-        full_tail_pages = []
-        try:
-            while True:
-                full_tail_pages.append(self.full_tail_pages.get(block=False))
-        except:
-            pass
+        full_tail_pages = list(self.full_tail_pages.queue)
 
         data = [self.name, self.key_index, self.num_columns, self.base_rid, full_tail_pages,
                 self.tps, self.indexes, self.rid_directory, self.indirection, self.base_page_pids,
