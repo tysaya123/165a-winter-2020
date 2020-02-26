@@ -103,13 +103,14 @@ class TestPageMethods(TestCase):
 
 class TestTableMethods(TestCase):
     def setUp(self):
-        folder = path.expanduser("~/test")
+
+        folder = path.expanduser("~")
         self.bufferpool = BufferPool(folder)
         self.table = Table(self.bufferpool, 'test', 3, 1)
 
     def tearDown(self):
         self.bufferpool.close_file()
-        folder = path.expanduser("~/test")
+        folder = path.expanduser("~")
         remove(path.join(folder, 'memory_file.txt'))
 
     def testInsert1(self):
@@ -259,12 +260,12 @@ class TestTableMethods(TestCase):
 
 class TestBufferPoolMethods(TestCase):
     def setUp(self):
-        folder = path.expanduser("~/test")
+        folder = path.expanduser("~")
         self.bufferpool = BufferPool(folder)
 
     def tearDown(self):
         self.bufferpool.close_file()
-        folder = path.expanduser("~/test")
+        folder = path.expanduser("~")
         remove(path.join(folder, 'memory_file.txt'))
 
     def testNewBasePage(self):
