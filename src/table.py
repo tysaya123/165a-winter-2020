@@ -96,6 +96,7 @@ class Table:
         self.run_merge = True
         self.merge_process = Thread(target=self.start_merge_process)
         self.merge_process.start()
+        pass
 
 
     def close(self):
@@ -134,9 +135,10 @@ class Table:
         # TODO: Some potential for optimization here.
         # It is perhaps slow to manually sort the tail records within this
         # page by tid. There might be a way to get this information faster.
+
         records = [[k] + v for k, v in tail_page.records.items()]
         records = sorted(records, key = lambda x: x[0], reverse=True)
-
+        # TODO When merge tps should be largest not smallest should be done at the end???
         self.tps_lock.acquire()
         self.tps = records[0][0]
         self.tps_lock.release()
@@ -175,7 +177,7 @@ class Table:
             # If we already updated the base record, continue.
             if referenced_rid in already_updated:
                 continue
-            already_updated.add(referenced_rid)
+            already_updated.add(referenced_rid) #TODO Would we only not update if a later one had been pushed therefore fixed by above
 
             old_pids = self.rid_directory[referenced_rid]
             for i, old_pid in enumerate(old_pids):
@@ -185,12 +187,12 @@ class Table:
                 self.bufferpool.close_page(pid)
 
         # Now update references to new pages.
-        for record in already_updated:
+        for record in already_updated: #TODO Should this be keys?
             self.rid_dir_lock.acquire()
-            self.rid_directory[record] = [base_page_copies[rid] for rid in self.rid_directory[record]]
+            self.rid_directory[record] = [base_page_copies[rid] for rid in self.rid_directory[record]] #TODO should be swapping the pages instead
             self.rid_dir_lock.release()
 
-        self.bufferpool.check_all_pins()
+        # self.bufferpool.check_all_pins()
 
 
     def insert(self, *columns):
@@ -231,7 +233,7 @@ class Table:
         self.rid_dir_lock.release()
         self.indirection[rid] = rid
 
-        self.bufferpool.check_all_pins()
+        # self.bufferpool.check_all_pins()
 
     def select(self, key, column, query_columns):
         rids = self.indexes[column].get(key)
@@ -281,7 +283,7 @@ class Table:
 
             records.append(Record(rid, i, vals))
 
-        self.bufferpool.check_all_pins()
+        # self.bufferpool.check_all_pins()
 
         return records
 
@@ -321,7 +323,7 @@ class Table:
             curr_page.delete_record(curr_rid)
             self.bufferpool.close_page(curr_pid)
 
-        self.bufferpool.check_all_pins()
+        # self.bufferpool.check_all_pins()
 
     def update(self, key, *columns):
         rid = self.indexes[self.key_index].get(key)[0]
@@ -349,7 +351,10 @@ class Table:
         # TODO: Set the dirty bits only to the columns we're changing.
         for pid in pids:
             page = self.bufferpool.get_base_page(pid)
-            page.set_dirty(rid, 1)
+            try:
+                page.set_dirty(rid, 1)
+            except:
+                print(" ")
             self.bufferpool.close_page(pid)
 
         pid = self.tail_page_pid
@@ -384,7 +389,7 @@ class Table:
         self.indirection[rid] = tail_rid
         self.rid_directory[tail_rid] = self.tail_page_pid
 
-        self.bufferpool.check_all_pins()
+        # self.bufferpool.check_all_pins()
 
     def sum(self, start_range, end_range, aggregate_column):
         result = 0
@@ -395,7 +400,7 @@ class Table:
             if vals is not None and len(vals) > 0:
                 result += vals[0].columns[aggregate_column]
 
-        self.bufferpool.check_all_pins()
+        # self.bufferpool.check_all_pins()
 
         return result
 
