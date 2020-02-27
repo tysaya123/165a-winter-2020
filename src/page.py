@@ -54,7 +54,10 @@ class Page:
 
         i = 0
         while i <= 4096 - format_size:
-            record = list(struct.unpack(self.record_format, data[i: i + format_size]))
+            try:
+                record = list(struct.unpack(self.record_format, data[i: i + format_size]))
+            except:
+                print(" here")
             if record[0] == 0:
                 break
             self._unpack(record)

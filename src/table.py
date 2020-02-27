@@ -6,6 +6,7 @@ SCHEMA_ENCODING_COLUMN = 3
 import copy
 import pickle
 from queue import Queue
+from multiprocessing import Lock
 
 from index import Index
 from page import BasePage
@@ -47,6 +48,10 @@ class Table:
         # Contains a queue of all the full tail pages, for merge purposes.
         self.full_tail_pages = Queue()
 
+        # needs to init all locks early in case we init from a pickle because a lock cannot be pickled
+        self.tps_lock = Lock()
+        self.rid_dir_lock = Lock()
+
         # This happens when initializing from a pickled file.
         if name is None:
             return
@@ -80,6 +85,9 @@ class Table:
         for i in range(self.num_columns):
             self.base_page_pids[i] = bufferpool.new_base_page()
 
+
+        # TODO Begin merge??
+
     def __eq__(self, other):
         return (self.name == other.name and self.num_columns == other.num_columns
                and self.key_index == other.key_index and self.base_rid == other.base_rid
@@ -108,7 +116,9 @@ class Table:
         records = [[k] + v for k, v in tail_page.records.items()]
         records = sorted(records, key = lambda x: x[0], reverse=True)
 
+        self.tps_lock.acquire()
         self.tps = records[0][0]
+        self.tps_lock.release()
 
         # All the base pages that are referenced in the tail page.
         # TODO does this check that it points to a base page and not another tail page?
@@ -155,7 +165,9 @@ class Table:
 
         # Now update references to new pages.
         for record in already_updated:
+            self.rid_dir_lock.acquire()
             self.rid_directory[record] = [base_page_copies[rid] for rid in self.rid_directory[record]]
+            self.rid_dir_lock.release()
 
 
     def insert(self, *columns):
@@ -191,7 +203,9 @@ class Table:
         for i in range(self.num_columns):
             self.indexes[i].set(columns[i], rid)
 
+        self.rid_dir_lock.acquire()
         self.rid_directory[rid] = rids
+        self.rid_dir_lock.release()
         self.indirection[rid] = rid
 
     def select(self, key, column, query_columns):
@@ -206,7 +220,9 @@ class Table:
             pids = self.rid_directory[rid]
 
             # If there is an update, see if latest update is merged in already.
+            self.tps_lock.acquire()
             update_is_merged = self.tps >= self.indirection[rid]
+            self.tps_lock.release()
 
             # Result of the select
             vals = []
@@ -233,7 +249,10 @@ class Table:
                 tail_rid = self.indirection[rid]
                 tail_page = self.bufferpool.get_tail_page(self.rid_directory[tail_rid], self.num_columns)
                 vals = list(tail_page.read(tail_rid))
+
+                self.rid_dir_lock.acquire()
                 self.bufferpool.close_page(self.rid_directory[tail_rid])
+                self.rid_dir_lock.release()
 
             records.append(Record(rid, i, vals))
 
@@ -248,6 +267,7 @@ class Table:
         values = self.select(key, self.key_index, [1] * self.num_columns)[0].columns
         for i, val in enumerate(values):
             self.indexes[i].delete(values[i], base_rid)
+        #Lock
         pids = self.rid_directory[base_rid]
 
         # Mark all base records as deleted
@@ -278,7 +298,10 @@ class Table:
         rid = self.indexes[self.key_index].get(key)[0]
         if rid is None:
             return
+
+        self.rid_dir_lock.acquire()
         pids = self.rid_directory[rid]
+        self.rid_dir_lock.release()
 
         to_select = [1 if x is None else 0 for x in columns]
         values = self.select(key, self.key_index, to_select)[0].columns
@@ -338,7 +361,7 @@ class Table:
         for i in range(start_range, end_range + 1):
             compr = [1 if x == aggregate_column else 0 for x in range(self.num_columns)]
             vals = self.select(i, self.key_index, compr)
-            if vals is not None:
+            if vals is not None and len(vals) > 0:
                 result += vals[0].columns[aggregate_column]
 
         return result
