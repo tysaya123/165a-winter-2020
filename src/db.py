@@ -23,6 +23,7 @@ class Database():
 
     def open_bufferpool(self):
         file = path.join(self.folder, 'bufferpool.pkl')
+        import pdb; pdb.set_trace()
         bufferpool = BufferPool(self.folder)
         if path.isfile(file):
             with open(file, 'rb') as f:

@@ -117,9 +117,9 @@ class BufferPool:
             pid_to_flush = choice(pids)
 
             page_rep = self.page_rep_directory[pid_to_flush]
-            self.pin_lock.acquire()
+            page_rep.pin_lock.acquire()
             pins = page_rep.pins
-            self.pin_lock.release()
+            page_rep.pin_lock.release()
             if not page_rep.get_in_memory() or pins > 0: continue
 
             flushed = self.flush(pid_to_flush)

@@ -369,6 +369,7 @@ class TestDbOpenClose(TestCase):
         # Open the db and insert a few rows
         db = Database()
         folder = path.expanduser("~/test")
+        shutil.rmtree(folder, ignore_errors=True)
         db.open("~/test")
 
         table1 = db.create_table('table1', 5, 2)
