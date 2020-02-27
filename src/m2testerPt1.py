@@ -3,6 +3,11 @@ from query import Query
 
 from random import choice, randint, sample, seed
 
+from os import path
+import shutil
+folder = path.expanduser("~/ECS165")
+shutil.rmtree(folder, ignore_errors=True)
+
 db = Database()
 db.open('~/ECS165')
 # Student Id and 4 grades
