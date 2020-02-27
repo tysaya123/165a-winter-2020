@@ -135,10 +135,13 @@ class BufferPool:
         # TODO add check for pins and return false if being used
         page_rep = self.page_rep_directory[pid]
 
+        page_rep.pin_lock.acquire()
+
         if page_rep.pins > 0:
             raise ValueError('Cannot flush a page that is pinned')
 
-        page = page_rep.get_page()
+        # TODO should change get to not add a pin
+        page = page_rep.page
         if page is None:
             raise TypeError("Expected page in flush but got none")
         if page.dirty:
@@ -165,7 +168,7 @@ class BufferPool:
         # logging.debug(page_rep.get_page)
 
         page_rep.set_in_memory(False)
-        page_rep.close_page()
+        page_rep.pin_lock.release()
 
         return True
 
