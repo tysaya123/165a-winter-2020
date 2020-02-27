@@ -165,7 +165,6 @@ class BufferPool:
         # logging.debug(page_rep.get_page)
 
         page_rep.set_in_memory(False)
-        page_rep.close_page()
 
         return True
 
@@ -223,7 +222,6 @@ class PageRep:
         self.page = page
 
     def get_page(self):
-        self.place_pin()
         return self.page
 
     def close_page(self):
