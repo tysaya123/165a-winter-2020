@@ -367,8 +367,9 @@ class TestDbMethods(TestCase):
 class TestDbOpenClose(TestCase):
     def testTwoTables(self):
         # Open the db and insert a few rows
-        db = Database()
         folder = path.expanduser("~/test")
+        shutil.rmtree(folder, ignore_errors=True)
+        db = Database()
         db.open("~/test")
 
         table1 = db.create_table('table1', 5, 2)
