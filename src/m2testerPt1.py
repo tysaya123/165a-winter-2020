@@ -1,5 +1,6 @@
 from db import Database
 from query import Query
+import pickle
 
 from random import choice, randint, sample, seed
 
@@ -16,6 +17,7 @@ query = Query(grades_table)
 
 records = {}
 seed(3562901)
+first_key = 92106429
 for i in range(0, 1000):
     key = 92106429 + i
     records[key] = [key, randint(0, 20), randint(0, 20), randint(0, 20), randint(0, 20)]
@@ -65,4 +67,12 @@ for i in range(0, 100):
     # else:
     #     print('sum on [', keys[r[0]], ',', keys[r[1]], ']: ', column_sum)
 print("Aggregate finished")
+
+recs = {}
+for key in keys:
+    recs[key] = query.select(key, 0, [1, 1, 1, 1, 1])[0].columns
+
+with open("m2t1.pkl", "w+b") as f:
+    pickle.dump(recs, f)
+
 db.close()
