@@ -93,15 +93,14 @@ class Table:
 
     def initialize_merge(self):
         # Flag to tell whether merge should join or not. True if it should keep running.
-        # self.run_merge = True
-        # self.merge_process = Thread(target=self.start_merge_process)
-        # self.merge_process.start()
-        pass
+        self.run_merge = True
+        self.merge_process = Thread(target=self.start_merge_process)
+        self.merge_process.start()
 
 
     def close(self):
         self.run_merge = False
-        # self.merge_process.join()
+        self.merge_process.join()
 
     def __eq__(self, other):
         return (self.name == other.name and self.num_columns == other.num_columns
@@ -127,7 +126,7 @@ class Table:
     def __merge(self):
         # Grab a tail page to merge.
         try:
-            tail_pid = self.full_tail_pages.get(block=False)
+            tail_pid = self.full_tail_pages.get(block=True, timeout=1)
         except:
             return
         tail_page = self.bufferpool.get_tail_page(tail_pid, self.num_columns)
@@ -190,7 +189,7 @@ class Table:
             self.rid_directory[record] = [base_page_copies[rid] for rid in self.rid_directory[record]] #TODO should be swapping the pages instead
             self.rid_dir_lock.release()
 
-        # self.bufferpool.check_all_pins()
+        #self.bufferpool.check_all_pins()
 
 
     def insert(self, *columns):
@@ -231,7 +230,7 @@ class Table:
         self.rid_dir_lock.release()
         self.indirection[rid] = rid
 
-        # self.bufferpool.check_all_pins()
+        #self.bufferpool.check_all_pins()
 
     def select(self, key, column, query_columns):
         rids = self.indexes[column].get(key)
@@ -281,7 +280,7 @@ class Table:
 
             records.append(Record(rid, i, vals))
 
-        # self.bufferpool.check_all_pins()
+        #self.bufferpool.check_all_pins()
 
         return records
 
@@ -321,7 +320,7 @@ class Table:
             curr_page.delete_record(curr_rid)
             self.bufferpool.close_page(curr_pid)
 
-        # self.bufferpool.check_all_pins()
+        #self.bufferpool.check_all_pins()
 
     def update(self, key, *columns):
         rid = self.indexes[self.key_index].get(key)[0]
@@ -387,7 +386,10 @@ class Table:
         self.indirection[rid] = tail_rid
         self.rid_directory[tail_rid] = self.tail_page_pid
 
-        # self.bufferpool.check_all_pins()
+        #if self.full_tail_pages.qsize() > 0:
+        #    self.start_merge_once()
+
+        #self.bufferpool.check_all_pins()
 
     def sum(self, start_range, end_range, aggregate_column):
         result = 0
@@ -398,7 +400,7 @@ class Table:
             if vals is not None and len(vals) > 0:
                 result += vals[0].columns[aggregate_column]
 
-        # self.bufferpool.check_all_pins()
+        #self.bufferpool.check_all_pins()
 
         return result
 

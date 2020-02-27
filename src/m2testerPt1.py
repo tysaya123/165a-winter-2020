@@ -33,7 +33,7 @@ for key in keys:
             error = True
     if error:
         print('select error on', key, ':', record, ', correct:', records[key])
-    # else:
+    # else
     #     print('select on', key, ':', record)
 print("Select finished")
 
