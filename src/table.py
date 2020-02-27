@@ -138,13 +138,11 @@ class Table:
 
         records = [[k] + v for k, v in tail_page.records.items()]
         records = sorted(records, key = lambda x: x[0], reverse=True)
-        # TODO When merge tps should be largest not smallest should be done at the end???
         self.tps_lock.acquire()
         self.tps = records[0][0]
         self.tps_lock.release()
 
         # All the base pages that are referenced in the tail page.
-        # TODO does this check that it points to a base page and not another tail page?
         referenced_pids = set()
         for key in tail_page.records.keys():
             for pid in self.rid_directory[self.base_rid[key]]:
@@ -177,7 +175,7 @@ class Table:
             # If we already updated the base record, continue.
             if referenced_rid in already_updated:
                 continue
-            already_updated.add(referenced_rid) #TODO Would we only not update if a later one had been pushed therefore fixed by above
+            already_updated.add(referenced_rid)
 
             old_pids = self.rid_directory[referenced_rid]
             for i, old_pid in enumerate(old_pids):
