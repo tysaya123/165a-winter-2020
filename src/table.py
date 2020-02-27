@@ -88,9 +88,15 @@ class Table:
             self.base_page_pids[i] = bufferpool.new_base_page()
 
         # Flag to tell whether merge should join or not. True if it should keep running.
+        self.run_merge = False
+        self.merge_process = None
+
+    def initialize_merge(self):
+        # Flag to tell whether merge should join or not. True if it should keep running.
         self.run_merge = True
         self.merge_process = Thread(target=self.start_merge_process)
         self.merge_process.start()
+
 
     def close(self):
         self.run_merge = False

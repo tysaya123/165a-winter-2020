@@ -38,6 +38,7 @@ class Database():
                 pkl = f.read()
                 table.load(pkl)
                 self.tables[table.name] = table
+                table.initialize_merge()
 
     def close(self):
         # TODO join merges
@@ -51,8 +52,8 @@ class Database():
             f.write(pkl)
 
     def close_tables(self):
-        table.close()
         for name, table in self.tables.items():
+            table.close()
             with open(path.join(self.folder, name + '_table.pkl'), 'wb') as f:
                 pkl = table.dump()
                 f.write(pkl)
