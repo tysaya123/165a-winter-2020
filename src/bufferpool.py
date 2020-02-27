@@ -15,7 +15,11 @@ class BufferPool:
         self.pid_counter = 1
 
         self.memory_file_name = "memory_file.txt"
-        self.mem_file = open(path.join(folder, self.memory_file_name), "w+b")
+        file_path = path.join(folder, self.memory_file_name)
+        if not path.isfile(file_path):
+            self.mem_file = open(file_path, "w+b")
+        else:
+            self.mem_file = open(file_path, "r+b")
         # When num_open_memory > BUFFERPOOL_SIZE then begin evicting
         self.num_open_page = 0
 
@@ -68,9 +72,11 @@ class BufferPool:
         self.page_rep_directory[pid].remove_pin()
 
     def get_page(self, pid, page):
+        # TODO optimize by removed init calls above just pass a bool
         page_rep = self.page_rep_directory[pid]
 
-        # logging.debug(pid)
+        #TODO need another lock to ensure we do not place a pin while its being flushed
+        page_rep.place_pin()
 
         if page_rep.get_in_memory():
             return self.page_rep_directory[pid].get_page()
@@ -111,7 +117,10 @@ class BufferPool:
             pid_to_flush = choice(pids)
 
             page_rep = self.page_rep_directory[pid_to_flush]
-            if not page_rep.get_in_memory() or page_rep.pins > 0: continue
+            self.pin_lock.acquire()
+            pins = page_rep.pins
+            self.pin_lock.release()
+            if not page_rep.get_in_memory() or pins > 0: continue
 
             flushed = self.flush(pid_to_flush)
 
@@ -172,6 +181,9 @@ class BufferPool:
     def dump(self):
         self.close_file()
         for pid, page_rep in self.page_rep_directory.items():
+            page_rep.pin_lock.acquire()
+            pins = page_rep.pins
+            page_rep.pin_lock.release()
             if page_rep.pins != 0:
                 raise ValueException("Page Rep had non-zero pin count while dumping")
             page_rep.pin_lock = None
@@ -189,7 +201,7 @@ class PageRep:
         self.in_memory = True
         self.memory_offset = -1
         self.pins = 0
-        #self.pin_lock = Lock()
+        self.pin_lock = Lock()
         self.page = None
 
     def set_page(self, page):
@@ -215,13 +227,13 @@ class PageRep:
         return self.memory_offset
 
     def place_pin(self):
-        #self.pin_lock.acquire()
+        self.pin_lock.acquire()
         self.pins += 1
-        #self.pin_lock.release()
+        self.pin_lock.release()
 
     def remove_pin(self):
+        self.pin_lock.acquire()
         if self.pins == 0:
             raise ValueError('Number of pins cannot be less than 0')
-        #self.pin_lock.acquire()
         self.pins -= 1
-        #self.pin_lock.release()
+        self.pin_lock.release()
