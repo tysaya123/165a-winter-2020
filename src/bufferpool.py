@@ -165,6 +165,7 @@ class BufferPool:
         # logging.debug(page_rep.get_page)
 
         page_rep.set_in_memory(False)
+        page_rep.close_page()
 
         return True
 
@@ -181,7 +182,7 @@ class BufferPool:
             pins = page_rep.pins
             page_rep.pin_lock.release()
             if page_rep.pins != 0:
-                raise ValueException("Page Rep had non-zero pin count while dumping")
+                raise ValueError("Page Rep had non-zero pin count while dumping")
             page_rep.pin_lock = None
 
         data = [self.page_rep_directory, self.pid_counter]
@@ -222,6 +223,7 @@ class PageRep:
         self.page = page
 
     def get_page(self):
+        self.place_pin()
         return self.page
 
     def close_page(self):
