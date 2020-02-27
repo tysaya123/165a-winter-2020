@@ -93,15 +93,15 @@ class Table:
 
     def initialize_merge(self):
         # Flag to tell whether merge should join or not. True if it should keep running.
-        self.run_merge = True
-        self.merge_process = Thread(target=self.start_merge_process)
-        self.merge_process.start()
+        # self.run_merge = True
+        # self.merge_process = Thread(target=self.start_merge_process)
+        # self.merge_process.start()
         pass
 
 
     def close(self):
         self.run_merge = False
-        self.merge_process.join()
+        # self.merge_process.join()
 
     def __eq__(self, other):
         return (self.name == other.name and self.num_columns == other.num_columns
