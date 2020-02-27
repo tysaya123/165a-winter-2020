@@ -169,6 +169,8 @@ class Table:
             self.rid_directory[record] = [base_page_copies[rid] for rid in self.rid_directory[record]]
             self.rid_dir_lock.release()
 
+        self.bufferpool.check_all_pins()
+
 
     def insert(self, *columns):
         # TODO: Check if record already exists
@@ -207,6 +209,8 @@ class Table:
         self.rid_directory[rid] = rids
         self.rid_dir_lock.release()
         self.indirection[rid] = rid
+
+        self.bufferpool.check_all_pins()
 
     def select(self, key, column, query_columns):
         rids = self.indexes[column].get(key)
@@ -256,6 +260,8 @@ class Table:
 
             records.append(Record(rid, i, vals))
 
+        self.bufferpool.check_all_pins()
+
         return records
 
     def delete(self, key):
@@ -293,6 +299,8 @@ class Table:
 
             curr_page.delete_record(curr_rid)
             self.bufferpool.close_page(curr_pid)
+
+        self.bufferpool.check_all_pins()
 
     def update(self, key, *columns):
         rid = self.indexes[self.key_index].get(key)[0]
@@ -355,6 +363,8 @@ class Table:
         self.indirection[rid] = tail_rid
         self.rid_directory[tail_rid] = self.tail_page_pid
 
+        self.bufferpool.check_all_pins()
+
     def sum(self, start_range, end_range, aggregate_column):
         result = 0
 
@@ -363,6 +373,8 @@ class Table:
             vals = self.select(i, self.key_index, compr)
             if vals is not None and len(vals) > 0:
                 result += vals[0].columns[aggregate_column]
+
+        self.bufferpool.check_all_pins()
 
         return result
 

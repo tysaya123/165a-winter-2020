@@ -1,3 +1,5 @@
+# TODO: Remember to remove all checks, asserts, etc. for optimization
+# TODO: Remember to remove all calls to check_all_pins()
 import logging
 import mmap
 import pickle
@@ -76,7 +78,6 @@ class BufferPool:
         page_rep = self.page_rep_directory[pid]
 
         #TODO need another lock to ensure we do not place a pin while its being flushed
-        page_rep.place_pin()
 
         if page_rep.get_in_memory():
             return self.page_rep_directory[pid].get_page()
@@ -99,10 +100,6 @@ class BufferPool:
         page = self.page_rep_directory[pid].get_page()
 
         return page
-
-    def close_page(self, pid):
-        page_rep = self.page_rep_directory[pid]
-        page_rep.remove_pin()
 
     def read_page_from_memory(self, page_rep):
         offset = page_rep.get_memory_offset()
@@ -189,11 +186,29 @@ class BufferPool:
             page_rep.pin_lock = None
 
         data = [self.page_rep_directory, self.pid_counter]
+        pickle_data = pickle.dumps(data)
 
-        return pickle.dumps(data)
+        self.initialize_locks()
+
+        return pickle_data
+
+    def initialize_locks(self):
+        for _, page_rep in self.page_rep_directory.items():
+            page_rep.pin_lock = Lock()
 
     def load(self, data):
         [self.page_rep_directory, self.pid_counter] = pickle.loads(data)
+        self.initialize_locks()
+
+    def check_all_pins(self):
+        for pid, page_rep in self.page_rep_directory.items():
+            if page_rep.pins != 0:
+                raise ValueError('Number of pins on page should be 0')
+
+    def get_num_pins(self):
+        total = 0
+        for page_rep in list(self.page_rep_directory.values()):
+            total += page_rep.get_num_pins()
 
 
 class PageRep:
@@ -232,8 +247,8 @@ class PageRep:
         self.pin_lock.release()
 
     def remove_pin(self):
-        self.pin_lock.acquire()
         if self.pins == 0:
             raise ValueError('Number of pins cannot be less than 0')
+        self.pin_lock.acquire()
         self.pins -= 1
         self.pin_lock.release()
