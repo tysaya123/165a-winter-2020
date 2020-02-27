@@ -100,10 +100,6 @@ class BufferPool:
 
         return page
 
-    def close_page(self, pid):
-        page_rep = self.page_rep_directory[pid]
-        page_rep.remove_pin()
-
     def read_page_from_memory(self, page_rep):
         offset = page_rep.get_memory_offset()
         self.mem_file.seek(offset)
@@ -117,9 +113,9 @@ class BufferPool:
             pid_to_flush = choice(pids)
 
             page_rep = self.page_rep_directory[pid_to_flush]
-            self.pin_lock.acquire()
+            page_rep.pin_lock.acquire()
             pins = page_rep.pins
-            self.pin_lock.release()
+            page_rep.pin_lock.release()
             if not page_rep.get_in_memory() or pins > 0: continue
 
             flushed = self.flush(pid_to_flush)
@@ -168,7 +164,6 @@ class BufferPool:
         # logging.debug(page_rep.get_page)
 
         page_rep.set_in_memory(False)
-        page_rep.close_page()
 
         return True
 
@@ -208,7 +203,6 @@ class PageRep:
         self.page = page
 
     def get_page(self):
-        self.place_pin()
         return self.page
 
     def close_page(self):
