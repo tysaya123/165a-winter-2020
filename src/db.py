@@ -68,6 +68,7 @@ class Database():
     def create_table(self, name, num_columns, key):
         table = Table(self.bufferpool, name, num_columns, key)
         self.tables[name] = table
+        table.initialize_merge()
         return table
 
     """
