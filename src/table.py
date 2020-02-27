@@ -7,6 +7,8 @@ import copy
 import pickle
 from queue import Queue
 from multiprocessing import Lock
+from threading import Thread
+
 
 from index import Index
 from page import BasePage
@@ -85,8 +87,14 @@ class Table:
         for i in range(self.num_columns):
             self.base_page_pids[i] = bufferpool.new_base_page()
 
+        # Flag to tell whether merge should join or not. True if it should keep running.
+        self.run_merge = True
+        self.merge_process = Thread(target=self.start_merge_process)
+        self.merge_process.start()
 
-        # TODO Begin merge??
+    def close(self):
+        self.run_merge = False
+        self.merge_process.join()
 
     def __eq__(self, other):
         return (self.name == other.name and self.num_columns == other.num_columns
@@ -100,14 +108,21 @@ class Table:
         self.rid_counter += 1
         return self.rid_counter - 1
 
-    def start_merge(self):
+    def start_merge_once(self):
         if self.full_tail_pages.empty():
             return
         self.__merge()
 
+    def start_merge_process(self):
+        while self.run_merge:
+            self.__merge()
+
     def __merge(self):
         # Grab a tail page to merge.
-        tail_pid = self.full_tail_pages.get(block=True)
+        try:
+            tail_pid = self.full_tail_pages.get(block=False)
+        except:
+            return
         tail_page = self.bufferpool.get_tail_page(tail_pid, self.num_columns)
 
         # TODO: Some potential for optimization here.
