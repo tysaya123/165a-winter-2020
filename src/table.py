@@ -9,7 +9,6 @@ from queue import Queue
 from multiprocessing import Lock
 from threading import Thread
 
-
 from index import Index
 from page import BasePage
 
@@ -41,7 +40,8 @@ class Table:
     :param bufferpool: BufferPool   #Reference to the global bufferpool
     """
 
-    def __init__(self, bufferpool, name = None, num_columns = None, key_index = None):
+    def __init__(self, bufferpool, name=None, num_columns=None, key_index=None):
+        self.merge_count = 0
         self.name = name
         self.key_index = key_index
         self.num_columns = num_columns
@@ -97,18 +97,17 @@ class Table:
         self.merge_process = Thread(target=self.start_merge_process)
         self.merge_process.start()
 
-
     def close(self):
         self.run_merge = False
         self.merge_process.join()
 
     def __eq__(self, other):
         return (self.name == other.name and self.num_columns == other.num_columns
-               and self.key_index == other.key_index and self.base_rid == other.base_rid
-               and self.tps == other.tps and self.indexes == other.indexes
-               and self.rid_directory == other.rid_directory and self.indirection == other.indirection
-               and self.base_page_pids == other.base_page_pids and self.tail_page_pid == other.tail_page_pid
-               and self.rid_counter == other.rid_counter and self.full_tail_pages.qsize() == other.full_tail_pages.qsize())
+                and self.key_index == other.key_index and self.base_rid == other.base_rid
+                and self.tps == other.tps and self.indexes == other.indexes
+                and self.rid_directory == other.rid_directory and self.indirection == other.indirection
+                and self.base_page_pids == other.base_page_pids and self.tail_page_pid == other.tail_page_pid
+                and self.rid_counter == other.rid_counter and self.full_tail_pages.qsize() == other.full_tail_pages.qsize())
 
     def new_rid(self):
         self.rid_counter += 1
@@ -136,7 +135,7 @@ class Table:
         # page by tid. There might be a way to get this information faster.
 
         records = [[k] + v for k, v in tail_page.records.items()]
-        records = sorted(records, key = lambda x: x[0], reverse=True)
+        records = sorted(records, key=lambda x: x[0], reverse=True)
         self.tps_lock.acquire()
         self.tps = records[0][0]
         self.tps_lock.release()
@@ -184,13 +183,15 @@ class Table:
                 self.bufferpool.close_page(pid)
 
         # Now update references to new pages.
-        for record in already_updated: #TODO Should this be keys?
+        for record in already_updated:  # TODO Should this be keys?
             self.rid_dir_lock.acquire()
-            self.rid_directory[record] = [base_page_copies[rid] for rid in self.rid_directory[record]] #TODO should be swapping the pages instead
+            self.rid_directory[record] = [base_page_copies[rid] for rid in
+                                          self.rid_directory[record]]  # TODO should be swapping the pages instead
             self.rid_dir_lock.release()
 
-        #self.bufferpool.check_all_pins()
+        self.merge_count += 1
 
+        # self.bufferpool.check_all_pins()
 
     def insert(self, *columns):
         # TODO: Check if record already exists
@@ -230,7 +231,7 @@ class Table:
         self.rid_dir_lock.release()
         self.indirection[rid] = rid
 
-        #self.bufferpool.check_all_pins()
+        # self.bufferpool.check_all_pins()
 
     def select(self, key, column, query_columns):
         rids = self.indexes[column].get(key)
@@ -271,16 +272,17 @@ class Table:
             if has_dirty_bit:
                 # TODO: Check whether this actually gets proper values or not.
                 tail_rid = self.indirection[rid]
-                tail_page = self.bufferpool.get_tail_page(self.rid_directory[tail_rid], self.num_columns)
+                self.rid_dir_lock.acquire()
+                tail_pid = self.rid_directory[tail_rid]
+                self.rid_dir_lock.release()
+                tail_page = self.bufferpool.get_tail_page(tail_pid, self.num_columns)
                 vals = list(tail_page.read(tail_rid))
 
-                self.rid_dir_lock.acquire()
-                self.bufferpool.close_page(self.rid_directory[tail_rid])
-                self.rid_dir_lock.release()
+                self.bufferpool.close_page(tail_pid)
 
             records.append(Record(rid, i, vals))
 
-        #self.bufferpool.check_all_pins()
+        # self.bufferpool.check_all_pins()
 
         return records
 
@@ -293,7 +295,7 @@ class Table:
         values = self.select(key, self.key_index, [1] * self.num_columns)[0].columns
         for i, val in enumerate(values):
             self.indexes[i].delete(values[i], base_rid)
-        #Lock
+        # Lock
         pids = self.rid_directory[base_rid]
 
         # Mark all base records as deleted
@@ -320,7 +322,7 @@ class Table:
             curr_page.delete_record(curr_rid)
             self.bufferpool.close_page(curr_pid)
 
-        #self.bufferpool.check_all_pins()
+        # self.bufferpool.check_all_pins()
 
     def update(self, key, *columns):
         rid = self.indexes[self.key_index].get(key)[0]
@@ -342,7 +344,6 @@ class Table:
                 result.append(columns[i])
             else:
                 result.append(values[i])
-
 
         # Set the dirty bits to 1 for the entire record.
         # TODO: Set the dirty bits only to the columns we're changing.
@@ -386,10 +387,10 @@ class Table:
         self.indirection[rid] = tail_rid
         self.rid_directory[tail_rid] = self.tail_page_pid
 
-        #if self.full_tail_pages.qsize() > 0:
+        # if self.full_tail_pages.qsize() > 0:
         #    self.start_merge_once()
 
-        #self.bufferpool.check_all_pins()
+        # self.bufferpool.check_all_pins()
 
     def sum(self, start_range, end_range, aggregate_column):
         result = 0
@@ -400,7 +401,7 @@ class Table:
             if vals is not None and len(vals) > 0:
                 result += vals[0].columns[aggregate_column]
 
-        #self.bufferpool.check_all_pins()
+        # self.bufferpool.check_all_pins()
 
         return result
 
