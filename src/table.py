@@ -185,8 +185,7 @@ class Table:
         # Now update references to new pages.
         for record in already_updated:  # TODO Should this be keys?
             self.rid_dir_lock.acquire()
-            self.rid_directory[record] = [base_page_copies[rid] for rid in
-                                          self.rid_directory[record]]  # TODO should be swapping the pages instead
+            self.rid_directory[record] = [base_page_copies[rid] for rid in self.rid_directory[record]] #TODO should be swapping the pages instead
             self.rid_dir_lock.release()
 
         self.merge_count += 1
@@ -317,8 +316,6 @@ class Table:
 
             curr_page.delete_record(curr_rid)
             self.bufferpool.close_page(curr_pid)
-
-        # self.bufferpool.check_all_pins()
 
     def update(self, key, *columns):
         rid = self.indexes[self.key_index].get(key)[0]
