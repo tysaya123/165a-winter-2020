@@ -33,6 +33,8 @@ class BufferPool:
         page_rep = PageRep()
         page_rep.set_page(BasePage())
         page_rep.get_page().dirty = True
+        page_rep.close_page()
+
 
 
         if self.num_open_page >= BUFFERPOOL_SIZE:
@@ -55,7 +57,7 @@ class BufferPool:
         page_rep = PageRep()
         page_rep.set_page(TailPage(num_cols))
         page_rep.get_page().dirty = True
-
+        page_rep.close_page()
         if self.num_open_page >= BUFFERPOOL_SIZE:
             # logging.debug("not enough space")
             # self.buff_lock.acquire()
@@ -94,7 +96,6 @@ class BufferPool:
         page_rep = self.page_rep_directory[pid]
         self.buff_lock.release()
 
-        page_rep.place_pin()
         if page_rep.get_in_memory():
             # self.buff_lock.release()
             return self.page_rep_directory[pid].get_page()
@@ -248,7 +249,11 @@ class PageRep:
         self.page = page
 
     def get_page(self):
+        self.place_pin()
         return self.page
+
+    def close_page(self):
+        self.remove_pin()
 
     def set_in_memory(self, is_in_memory):
         self.in_memory = is_in_memory
