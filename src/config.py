@@ -15,7 +15,7 @@ SCHEMA_SIZE = 1
 NULL_RID = 0
 
 # Number of pages possible in the buffer pool 128000 is 1/2 a gb
-BUFFERPOOL_SIZE = 10000
+BUFFERPOOL_SIZE = 1000
 
 
 class SchemaEncoding(Enum):

@@ -95,12 +95,10 @@ class Table:
         # Flag to tell whether merge should join or not. True if it should keep running.
         self.run_merge = True
         self.merge_process = Thread(target=self.start_merge_process)
-        self.merge_process.start()
 
 
     def close(self):
         self.run_merge = False
-        self.merge_process.join()
 
     def __eq__(self, other):
         return (self.name == other.name and self.num_columns == other.num_columns
@@ -386,8 +384,8 @@ class Table:
         self.indirection[rid] = tail_rid
         self.rid_directory[tail_rid] = self.tail_page_pid
 
-        #if self.full_tail_pages.qsize() > 0:
-        #    self.start_merge_once()
+        if self.full_tail_pages.qsize() > 0:
+            self.start_merge_once()
 
         #self.bufferpool.check_all_pins()
 
