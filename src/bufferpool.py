@@ -69,25 +69,14 @@ class BufferPool:
         return self.pid_counter - 1
 
     def get_tail_page(self, pid, num_cols):
-        # self.buff_lock.acquire()
-        page = TailPage(num_cols)
-        page = self.get_page(pid, page)
-        # self.buff_lock.release()
+        page = self.get_page(pid, False, num_cols)
         return page
 
     def get_base_page(self, pid):
-        page = BasePage()
-        page = self.get_page(pid, page)
+        page = self.get_page(pid, True, None)
         return page
 
-    def close_page(self, pid):
-        # self.buff_lock.acquire()
-        if self.page_rep_directory[pid] is None:
-            raise KeyError('Page with pid {} does not exist'.format(pid))
-        self.page_rep_directory[pid].remove_pin()
-        # self.buff_lock.release()
-
-    def get_page(self, pid, page):
+    def get_page(self, pid, isBase, num_cols):
         # TODO optimize by removed init calls above just pass a bool
 
         self.buff_lock.acquire()
@@ -96,7 +85,6 @@ class BufferPool:
 
         page_rep.place_pin()
         if page_rep.get_in_memory():
-            # self.buff_lock.release()
             return self.page_rep_directory[pid].get_page()
 
         # Otherwise check if there is space in the bufferpool
@@ -110,6 +98,8 @@ class BufferPool:
         self.num_open_page += 1
 
         # Get the page from memory
+        if isBase: page = BasePage()
+        else: page = TailPage(num_cols)
         page_data = self.read_page_from_memory(page_rep)
         page.unpack(page_data)
         self.page_rep_directory[pid].set_page(page)
@@ -118,6 +108,13 @@ class BufferPool:
         page = self.page_rep_directory[pid].get_page()
 
         return page
+
+    def close_page(self, pid):
+        # self.buff_lock.acquire()
+        if self.page_rep_directory[pid] is None:
+            raise KeyError('Page with pid {} does not exist'.format(pid))
+        self.page_rep_directory[pid].remove_pin()
+        # self.buff_lock.release()
 
     def read_page_from_memory(self, page_rep):
         offset = page_rep.get_memory_offset()
