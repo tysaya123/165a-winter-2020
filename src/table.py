@@ -191,8 +191,6 @@ class Table:
 
         self.merge_count += 1
 
-        # self.bufferpool.check_all_pins()
-
     def insert(self, *columns):
         # TODO: Check if record already exists
         rid = self.new_rid()
@@ -230,8 +228,6 @@ class Table:
         self.rid_directory[rid] = rids
         self.rid_dir_lock.release()
         self.indirection[rid] = rid
-
-        # self.bufferpool.check_all_pins()
 
     def select(self, key, column, query_columns):
         rids = self.indexes[column].get(key)
@@ -387,11 +383,6 @@ class Table:
         self.indirection[rid] = tail_rid
         self.rid_directory[tail_rid] = self.tail_page_pid
 
-        # if self.full_tail_pages.qsize() > 0:
-        #    self.start_merge_once()
-
-        # self.bufferpool.check_all_pins()
-
     def sum(self, start_range, end_range, aggregate_column):
         result = 0
 
@@ -400,8 +391,6 @@ class Table:
             vals = self.select(i, self.key_index, compr)
             if vals is not None and len(vals) > 0:
                 result += vals[0].columns[aggregate_column]
-
-        # self.bufferpool.check_all_pins()
 
         return result
 
