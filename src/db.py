@@ -42,7 +42,6 @@ class Database():
 
     def close(self):
         # TODO join merges
-        print("Vacates:", self.bufferpool.vacate_count)
         self.close_bufferpool()
         self.close_tables()
 
@@ -54,7 +53,6 @@ class Database():
 
     def close_tables(self):
         for name, table in self.tables.items():
-            print("Merges:", table.merge_count)
             table.close()
             with open(path.join(self.folder, name + '_table.pkl'), 'wb') as f:
                 pkl = table.dump()
