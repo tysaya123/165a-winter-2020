@@ -6,8 +6,7 @@ SCHEMA_ENCODING_COLUMN = 3
 import copy
 import pickle
 from queue import Queue
-from multiprocessing import Lock
-from threading import Thread
+from threading import Thread, Lock
 
 from index import Index
 from page import BasePage
@@ -95,11 +94,9 @@ class Table:
         # Flag to tell whether merge should join or not. True if it should keep running.
         self.run_merge = True
         self.merge_process = Thread(target=self.start_merge_process)
-        self.merge_process.start()
 
     def close(self):
         self.run_merge = False
-        self.merge_process.join()
 
     def __eq__(self, other):
         return (self.name == other.name and self.num_columns == other.num_columns
@@ -125,7 +122,7 @@ class Table:
     def __merge(self):
         # Grab a tail page to merge.
         try:
-            tail_pid = self.full_tail_pages.get(block=True, timeout=1)
+            tail_pid = self.full_tail_pages.get(block=False)
         except:
             return
         tail_page = self.bufferpool.get_tail_page(tail_pid, self.num_columns)
@@ -277,8 +274,6 @@ class Table:
 
             records.append(Record(rid, i, vals))
 
-        # self.bufferpool.check_all_pins()
-
         return records
 
     def delete(self, key):
@@ -379,6 +374,9 @@ class Table:
         self.indirection[tail_rid] = self.indirection[rid]
         self.indirection[rid] = tail_rid
         self.rid_directory[tail_rid] = self.tail_page_pid
+
+        if self.full_tail_pages.qsize() > 0:
+            self.start_merge_once()
 
     def sum(self, start_range, end_range, aggregate_column):
         result = 0
