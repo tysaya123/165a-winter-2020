@@ -210,16 +210,17 @@ class BufferPool:
         data = [self.page_rep_directory, self.pid_counter]
         pickle_data = pickle.dumps(data)
 
-        self.initialize_locks()
+        #self.initialize_locks()
 
         return pickle_data
 
     def initialize_locks(self):
         for _, page_rep in self.page_rep_directory.items():
-            page_rep.pin_lock = Lock()
+            pass
+            #page_rep.pin_lock = Lock()
 
     def load(self, data):
-        [self.page_rep_directory, self.pid_counter] = pickle.loads(data)
+        #[self.page_rep_directory, self.pid_counter] = pickle.loads(data)
         self.initialize_locks()
 
     def check_all_pins(self):
