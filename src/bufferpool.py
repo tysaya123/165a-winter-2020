@@ -199,13 +199,13 @@ class BufferPool:
 
     def dump(self):
         self.close_file()
-        for pid, page_rep in self.page_rep_directory.items():
-            # page_rep.pin_lock.acquire()
-            pins = page_rep.pins
-            # page_rep.pin_lock.release()
-            if page_rep.pins != 0:
-                raise ValueError("Page Rep had non-zero pin count while dumping")
-            page_rep.pin_lock = None
+        #for pid, page_rep in self.page_rep_directory.items():
+        #    # page_rep.pin_lock.acquire()
+        #    pins = page_rep.pins
+        #    # page_rep.pin_lock.release()
+        #    if page_rep.pins != 0:
+        #        raise ValueError("Page Rep had non-zero pin count while dumping")
+        #    #page_rep.pin_lock = None
 
         data = [self.page_rep_directory, self.pid_counter]
         pickle_data = pickle.dumps(data)
@@ -220,8 +220,8 @@ class BufferPool:
             #page_rep.pin_lock = Lock()
 
     def load(self, data):
-        #[self.page_rep_directory, self.pid_counter] = pickle.loads(data)
-        self.initialize_locks()
+        [self.page_rep_directory, self.pid_counter] = pickle.loads(data)
+        #self.initialize_locks()
 
     def check_all_pins(self):
         for pid, page_rep in self.page_rep_directory.items():
