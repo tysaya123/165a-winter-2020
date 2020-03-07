@@ -15,7 +15,11 @@ from table import Table, Record
 from bufferpool import BufferPool
 from query import Query
 from db import Database
+import new_bufferpool
 from config import *
+
+class TestNewBuff(TestCase):
+    def test
 
 
 class TestPageMethods(TestCase):
