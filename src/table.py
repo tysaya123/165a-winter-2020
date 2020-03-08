@@ -60,8 +60,8 @@ class Table:
         self.tps_lock = Lock()
         # self.rid_dir_lock = Lock()
 
-        #self.insert_lock = Lock()
         self.rid_counter_lock = Lock()
+        self.temp_lock = Lock()
 
         # Holds all of the locking information for records.
         self.rid_lock_directory = {}
@@ -253,8 +253,10 @@ class Table:
         self.indirection[rid] = rid
 
     def select(self, key, column, query_columns):
+        #self.temp_lock.acquire()
         rids = self.indexes[column].get(key)
         if rids is None:
+            #self.temp_lock.release()
             return None
 
         # Stores all the records for all the rids given.
@@ -302,6 +304,7 @@ class Table:
 
             records.append(Record(rid, i, vals))
 
+        #self.temp_lock.release()
         return records
 
     def delete(self, key):

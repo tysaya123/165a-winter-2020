@@ -1,18 +1,18 @@
-from template.db import Database
-from template.query import Query
-from template.transaction import Transaction
-from template.transaction_worker import TransactionWorker
+from db import Database
+from query import Query
+from transaction import Transaction
+from transaction_worker import TransactionWorker
 
 import threading
 from random import choice, randint, sample, seed
 
 db = Database()
-db.open('/home/pkhorsand/165a-winter-2020-private/db')
+db.open('~/ECS165')
 grades_table = db.create_table('Grades', 5, 0)
 
 keys = []
 records = {}
-num_threads = 8
+num_threads = 1
 seed(8739878934)
 
 # Generate random records
@@ -63,3 +63,5 @@ if s != num_committed_transactions * 5:
     print('Expected sum:', num_committed_transactions * 5, ', actual:', s, '. Failed.')
 else:
     print('Pass.')
+
+db.close()
