@@ -3,6 +3,8 @@ RID_COLUMN = 1
 TIMESTAMP_COLUMN = 2
 SCHEMA_ENCODING_COLUMN = 3
 
+import datetime
+
 import copy
 import pickle
 from queue import Queue
@@ -141,10 +143,9 @@ class Table:
     def __merge(self):
         # Grab a tail page to merge.
         try:
-            tail_pid = self.full_tail_pages.get(block=True, timeout=0.1)
+            tail_pid = self.full_tail_pages.get(block=True, timeout=0.5)
         except:
             return
-        print('merging')
         tail_page = self.bufferpool.get_tail_page(tail_pid, self.num_columns)
 
         # TODO: Some potential for optimization here.
@@ -186,6 +187,7 @@ class Table:
 
         # Update the new base records from the records of the tail page.
         for record in records:
+
             referenced_rid = self.base_rid[record[0]]
             # If we already updated the base record, continue.
             if referenced_rid in already_updated:

@@ -19,6 +19,10 @@ class BufferPool:
 
 
         self.page_rep_directory = {}
+
+        # Holds the pids for those pages that are in memory.
+        self.page_pid_in_mem = set()
+
         self.pid_counter = 1
 
         self.memory_file_name = "memory_file.txt"
@@ -46,6 +50,7 @@ class BufferPool:
 
         self.num_open_page += 1
         self.page_rep_directory[self.pid_counter] = page_rep
+        self.page_pid_in_mem.add(self.pid_counter)
         self.pid_counter += 1
 
         self.global_lock.release()
@@ -71,6 +76,7 @@ class BufferPool:
 
         self.num_open_page += 1
         self.page_rep_directory[self.pid_counter] = page_rep
+        self.page_pid_in_mem.add(self.pid_counter)
         self.pid_counter += 1
 
         self.global_lock.release()
@@ -118,6 +124,7 @@ class BufferPool:
         page_rep.set_in_memory(True)
 
         page = self.page_rep_directory[pid].get_page()
+        self.page_pid_in_mem.add(pid)
 
         self.global_lock.release()
 
@@ -145,8 +152,8 @@ class BufferPool:
         while not flushed:
             # Choose a random pid from the page directory
             self.buff_lock.acquire()
-            pids = list(self.page_rep_directory.keys())
-            pid_to_flush = choice(pids)
+
+            pid_to_flush = choice(tuple(self.page_pid_in_mem))
 
             page_rep = self.page_rep_directory[pid_to_flush]
             self.buff_lock.release()
@@ -177,6 +184,7 @@ class BufferPool:
         # TODO add check for pins and return false if being used
         self.buff_lock.acquire()
         page_rep = self.page_rep_directory[pid]
+        self.page_pid_in_mem.remove(pid)
         # page_rep.pin_lock.acquire()
 
         if page_rep.pins > 0:
