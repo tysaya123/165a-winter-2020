@@ -1,18 +1,26 @@
-from template.db import Database
-from template.query import Query
-from template.transaction import Transaction
-from template.transaction_worker import TransactionWorker
+import threading
+
+from db import Database
+from query import Query
+from transaction import Transaction
+from transaction_worker import TransactionWorker
 
 from random import choice, randint, sample, seed
 
+from os import path
+import shutil
+
+folder = path.expanduser('~/ECS165')
+shutil.rmtree(folder, ignore_errors=True)
+
 db = Database()
-db.open('/home/pkhorsand/165a-winter-2020-private/db')
+db.open('~/ECS165')
 grades_table = db.create_table('Grades', 5, 0)
 
 keys = []
 records = {}
 seed(3562901)
-num_threads = 8
+num_threads = 1
 
 # Generate random records
 for i in range(0, 10000):
@@ -29,7 +37,7 @@ for i in range(num_threads):
     transaction_workers.append(TransactionWorker())
 
 for i in range(10000):
-    key = random.choice(keys)
+    key = choice(keys)
     record = records[key]
     c = record[1]
     transaction = Transaction()
@@ -43,13 +51,13 @@ for i in range(10000):
 
 threads = []
 for transaction_worker in transaction_workers:
-    threads.append(threading.Thread(transaction_worker.run, args = ()))
+    threads.append(threading.Thread(target=transaction_worker.run, args = ()))
 
 for thread in threads:
     thread.start()
 
 for thread in threads:
-    thread.wait()
+    thread.join()
 
 num_committed_transactions = sum(t.result for t in transaction_workers)
 

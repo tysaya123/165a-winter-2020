@@ -1,5 +1,5 @@
-from template.table import Table, Record
-from template.index import Index
+from table import Table, Record
+from index import Index
 
 class TransactionWorker:
 
@@ -24,8 +24,9 @@ class TransactionWorker:
     # transaction_worker = TransactionWorker([t])
     """
     def run(self):
-        for transaction in self.transactions:
+        for i, transaction in enumerate(self.transactions):
             # each transaction returns True if committed or False if aborted
+            print(i)
             self.stats.append(transaction.run())
         # stores the number of transactions that committed
         self.result = len(list(filter(lambda x: x, self.stats)))

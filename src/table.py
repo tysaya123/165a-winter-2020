@@ -13,6 +13,11 @@ from page import BasePage
 
 import pdb
 
+class RecordLock:
+    def __init__(self):
+        self.write_counter = 0
+        self.read_counter = 0
+        self.lock = Lock()
 
 class Record:
 
@@ -51,7 +56,13 @@ class Table:
 
         # needs to init all locks early in case we init from a pickle because a lock cannot be pickled
         self.tps_lock = Lock()
-        self.rid_dir_lock = Lock()
+        # self.rid_dir_lock = Lock()
+
+        #self.insert_lock = Lock()
+        self.rid_counter_lock = Lock()
+
+        # Holds all of the locking information for records.
+        self.rid_lock_directory = {}
 
         # This happens when initializing from a pickled file.
         if name is None:
@@ -109,8 +120,14 @@ class Table:
                 and self.rid_counter == other.rid_counter and self.full_tail_pages.qsize() == other.full_tail_pages.qsize())
 
     def new_rid(self):
+        self.rid_counter_lock.acquire()
+
         self.rid_counter += 1
-        return self.rid_counter - 1
+        rid = self.rid_counter - 1
+
+        self.rid_counter_lock.release()
+
+        return rid
 
     def start_merge_once(self):
         if self.full_tail_pages.empty():
@@ -127,6 +144,7 @@ class Table:
             tail_pid = self.full_tail_pages.get(block=True, timeout=0.1)
         except:
             return
+        print('merging')
         tail_page = self.bufferpool.get_tail_page(tail_pid, self.num_columns)
 
         # TODO: Some potential for optimization here.
@@ -183,15 +201,18 @@ class Table:
 
         # Now update references to new pages.
         for record in already_updated:  # TODO Should this be keys?
-            self.rid_dir_lock.acquire()
+            # self.rid_dir_lock.acquire()
             self.rid_directory[record] = [base_page_copies[rid] for rid in self.rid_directory[record]] #TODO should be swapping the pages instead
-            self.rid_dir_lock.release()
+            # self.rid_dir_lock.release()
 
         self.merge_count += 1
 
     def insert(self, *columns):
         # TODO: Check if record already exists
+        #self.insert_lock.acquire()
+
         rid = self.new_rid()
+        self.rid_lock_directory[rid] = RecordLock()
 
         self.rid_directory[rid] = [None] * self.num_columns
         rids = []
@@ -222,9 +243,11 @@ class Table:
         for i in range(self.num_columns):
             self.indexes[i].set(columns[i], rid)
 
-        self.rid_dir_lock.acquire()
+        #self.insert_lock.release()
+
+        # self.rid_dir_lock.acquire()
         self.rid_directory[rid] = rids
-        self.rid_dir_lock.release()
+        # self.rid_dir_lock.release()
         self.indirection[rid] = rid
 
     def select(self, key, column, query_columns):
@@ -266,9 +289,10 @@ class Table:
             if has_dirty_bit:
                 # TODO: Check whether this actually gets proper values or not.
                 tail_rid = self.indirection[rid]
-                self.rid_dir_lock.acquire()
+                # self.rid_dir_lock.acquire()
                 tail_pid = self.rid_directory[tail_rid]
-                self.rid_dir_lock.release()
+                # self.rid_dir_lock.release()
+                #print(tail_pid)
                 tail_page = self.bufferpool.get_tail_page(tail_pid, self.num_columns)
                 vals = list(tail_page.read(tail_rid))
 
@@ -319,9 +343,9 @@ class Table:
         if rid is None:
             return
 
-        self.rid_dir_lock.acquire()
+        # self.rid_dir_lock.acquire()
         pids = self.rid_directory[rid]
-        self.rid_dir_lock.release()
+        # self.rid_dir_lock.release()
 
         to_select = [1 if x is None else 0 for x in columns]
         values = self.select(key, self.key_index, to_select)[0].columns
