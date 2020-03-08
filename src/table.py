@@ -21,6 +21,31 @@ class RecordLock:
         self.read_counter = 0
         self.lock = Lock()
 
+    # grab_read and grab_write attempts to grab locks for reading / writing.
+    # If they are not able to, they return False, and the query should abort.
+
+    def grab_read(self):
+        with self.lock:
+            if self.write_counter > 0:
+                return False
+            self.read_counter += 1
+            return True
+
+    def grab_write(self):
+        with self.lock:
+            if self.read_counter > 0 or self.write_counter > 0:
+                return False
+            self.write_counter += 1
+            return True
+
+    def release_read(self):
+        with self.lock:
+            self.read_counter -= 1
+
+    def release_write(self):
+        with self.lock:
+            self.write_counter -= 1
+
 class Record:
 
     def __init__(self, rid, key, columns):
@@ -140,6 +165,15 @@ class Table:
         while self.run_merge:
             self.__merge()
 
+    def __release_locks(self, locks):
+        for lock_type, rid in locks:
+            if lock_type == 'read':
+                self.rid_lock_directory[rid].release_read()
+            elif lock_type == 'write':
+                self.rid_lock_directory[rid].release_write()
+            else:
+                raise ValueError('{} not a valid lock type'.format(lock_type))
+
     def __merge(self):
         # Grab a tail page to merge.
         try:
@@ -154,6 +188,7 @@ class Table:
 
         records = [[k] + v for k, v in tail_page.records.items()]
         records = sorted(records, key=lambda x: x[0], reverse=True)
+
         self.tps_lock.acquire()
         self.tps = records[0][0]
         self.tps_lock.release()
@@ -211,7 +246,6 @@ class Table:
 
     def insert(self, *columns):
         # TODO: Check if record already exists
-        #self.insert_lock.acquire()
 
         rid = self.new_rid()
         self.rid_lock_directory[rid] = RecordLock()
@@ -244,8 +278,6 @@ class Table:
         # Update page, rid_directory, indirection, index directories
         for i in range(self.num_columns):
             self.indexes[i].set(columns[i], rid)
-
-        #self.insert_lock.release()
 
         # self.rid_dir_lock.acquire()
         self.rid_directory[rid] = rids

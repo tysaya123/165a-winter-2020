@@ -8,6 +8,7 @@ class Transaction:
     """
     def __init__(self):
         self.queries = []
+        self.rids = []
         pass
 
     """
@@ -22,8 +23,6 @@ class Transaction:
 
     # If you choose to implement this differently this method must still return True if transaction commits or False on abort
     def run(self):
-        rids = []
-
         for query, args in self.queries:
             #print(query.__name__)
             result = query(*args)
