@@ -14,6 +14,7 @@ from page import BasePage, TailPage
 class BufferPool:
     def __init__(self, folder):
         self.vacate_count = 0
+        self.global_lock = Lock()
         self.buff_lock = Lock()
 
 
@@ -30,10 +31,11 @@ class BufferPool:
         self.num_open_page = 0
 
     def new_base_page(self):
+        self.global_lock.acquire()
+
         page_rep = PageRep()
         page_rep.set_page(BasePage())
         page_rep.get_page().dirty = True
-
 
         if self.num_open_page >= BUFFERPOOL_SIZE:
             # logging.debug("not enough space")
@@ -45,9 +47,13 @@ class BufferPool:
         self.num_open_page += 1
         self.page_rep_directory[self.pid_counter] = page_rep
         self.pid_counter += 1
+
+        self.global_lock.release()
+
         return self.pid_counter - 1
 
     def new_tail_page(self, num_cols):
+        self.global_lock.acquire()
 
         if num_cols <= 0:
             raise ValueError('Number of columns cannot be <= 0')
@@ -66,6 +72,9 @@ class BufferPool:
         self.num_open_page += 1
         self.page_rep_directory[self.pid_counter] = page_rep
         self.pid_counter += 1
+
+        self.global_lock.release()
+
         return self.pid_counter - 1
 
     def get_tail_page(self, pid, num_cols):
@@ -79,12 +88,15 @@ class BufferPool:
     def get_page(self, pid, isBase, num_cols):
         # TODO optimize by removed init calls above just pass a bool
 
+        self.global_lock.acquire()
+
         self.buff_lock.acquire()
         page_rep = self.page_rep_directory[pid]
         self.buff_lock.release()
 
         page_rep.place_pin()
         if page_rep.get_in_memory():
+            self.global_lock.release()
             return self.page_rep_directory[pid].get_page()
 
         # Otherwise check if there is space in the bufferpool
@@ -107,14 +119,20 @@ class BufferPool:
 
         page = self.page_rep_directory[pid].get_page()
 
+        self.global_lock.release()
+
         return page
 
     def close_page(self, pid):
+        self.global_lock.acquire()
+
         # self.buff_lock.acquire()
         if self.page_rep_directory[pid] is None:
             raise KeyError('Page with pid {} does not exist'.format(pid))
         self.page_rep_directory[pid].remove_pin()
         # self.buff_lock.release()
+
+        self.global_lock.release()
 
     def read_page_from_memory(self, page_rep):
         offset = page_rep.get_memory_offset()
@@ -145,10 +163,14 @@ class BufferPool:
         return
 
     def flush_all(self):
+        self.global_lock.acquire()
+
         for pid in self.page_rep_directory:
             page_rep = self.page_rep_directory[pid]
             if page_rep.get_in_memory():
                 self.flush(pid)
+
+        self.global_lock.release()
 
     def flush(self, pid):
         # TODO remove from directory
@@ -198,6 +220,8 @@ class BufferPool:
         self.mem_file.close()
 
     def dump(self):
+        self.global_lock.acquire()
+
         self.close_file()
         #for pid, page_rep in self.page_rep_directory.items():
         #    # page_rep.pin_lock.acquire()
@@ -212,6 +236,8 @@ class BufferPool:
 
         #self.initialize_locks()
 
+        self.global_lock.release()
+
         return pickle_data
 
     def initialize_locks(self):
@@ -220,7 +246,11 @@ class BufferPool:
             #page_rep.pin_lock = Lock()
 
     def load(self, data):
+        self.global_lock.acquire()
+
         [self.page_rep_directory, self.pid_counter] = pickle.loads(data)
+
+        self.global_lock.release()
         #self.initialize_locks()
 
     def check_all_pins(self):
