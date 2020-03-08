@@ -96,9 +96,11 @@ class BufferPool:
 
         self.global_lock.acquire()
 
-        self.buff_lock.acquire()
+        # Removed
+        #self.buff_lock.acquire()
         page_rep = self.page_rep_directory[pid]
-        self.buff_lock.release()
+        # Removed
+        #self.buff_lock.release()
 
         page_rep.place_pin()
         if page_rep.get_in_memory():
@@ -147,27 +149,29 @@ class BufferPool:
         return self.mem_file.read(PAGE_SIZE)
 
     def vacate(self):
-        self.vacate_count += 1
+        # num_to_vacate = self.vacate_count + 1
         flushed = False
         while not flushed:
+            #print(num_to_vacate, self.vacate_count)
             # Choose a random pid from the page directory
-            self.buff_lock.acquire()
+
+            # Removed
+            #self.buff_lock.acquire()
 
             pid_to_flush = choice(tuple(self.page_pid_in_mem))
 
             page_rep = self.page_rep_directory[pid_to_flush]
-            self.buff_lock.release()
+            # Removed
+            #self.buff_lock.release()
 
             # page_rep.pin_lock.acquire()
-            pins = page_rep.pins
             # page_rep.pin_lock.release()
-            if not page_rep.get_in_memory() or pins > 0: continue
+            if page_rep.pins > 0: continue
 
             flushed = self.flush(pid_to_flush)
-
-        self.num_open_page -= 1
-
-        return
+            if flushed:
+                self.vacate_count += 1
+                self.num_open_page -= 1
 
     def flush_all(self):
         self.global_lock.acquire()
@@ -182,7 +186,8 @@ class BufferPool:
     def flush(self, pid):
         # TODO remove from directory
         # TODO add check for pins and return false if being used
-        self.buff_lock.acquire()
+        # Removed
+        #self.buff_lock.acquire()
         page_rep = self.page_rep_directory[pid]
         self.page_pid_in_mem.remove(pid)
         # page_rep.pin_lock.acquire()
@@ -211,7 +216,8 @@ class BufferPool:
             self.mem_file.write(data)
             self.mem_file.flush()
 
-        self.buff_lock.release()
+        # Removed
+        #self.buff_lock.release()
         # logging.debug("flushed:")
         # logging.debug(page_rep.get_page)
 

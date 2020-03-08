@@ -177,7 +177,7 @@ class Table:
     def __merge(self):
         # Grab a tail page to merge.
         try:
-            tail_pid = self.full_tail_pages.get(block=True, timeout=0.5)
+            tail_pid = self.full_tail_pages.get(block=True, timeout=0.2)
         except:
             return
         tail_page = self.bufferpool.get_tail_page(tail_pid, self.num_columns)
