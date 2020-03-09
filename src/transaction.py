@@ -29,17 +29,19 @@ class Transaction:
         for query, args in self.queries:
             if query.__name__ == "select":
                 # new_args = args.append(locked_rids)
-                query.__self__.table.select_lock(args[0], args[1], locked_rids)
+                acquired = query.__self__.table.select_lock(args[0], args[1], locked_rids)
             elif query.__name__ == "increment":
                 # new_args = args.append(locked_rids)
-                query.__self__.table.increment_lock(args[0], locked_rids)
+                acquired = query.__self__.table.increment_lock(args[0], locked_rids)
             elif query.__name__ == "update":
                 # new_args = args.append(locked_rids)
-                query.__self__.table.update_lock(args[0], locked_rids)
+                acquired = query.__self__.table.update_lock(args[0], locked_rids)
             else:
                 print("NONE WERE CALLED")
                 print(query.__name__ )
             # If the query has failed the transaction should abort
+            if not acquired:
+                return self.abort(query, locked_rids)
         for query, args in self.queries:
             # print(query.__name__)
             result = query(*args)
