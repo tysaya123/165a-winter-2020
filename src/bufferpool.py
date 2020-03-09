@@ -53,9 +53,10 @@ class BufferPool:
         self.page_pid_in_mem.add(self.pid_counter)
         self.pid_counter += 1
 
+        pid = self.pid_counter - 1
         self.global_lock.release()
 
-        return self.pid_counter - 1
+        return pid
 
     def new_tail_page(self, num_cols):
         self.global_lock.acquire()
@@ -79,22 +80,25 @@ class BufferPool:
         self.page_pid_in_mem.add(self.pid_counter)
         self.pid_counter += 1
 
+        pid = self.pid_counter - 1
         self.global_lock.release()
 
-        return self.pid_counter - 1
+        return pid
 
     def get_tail_page(self, pid, num_cols):
+        self.global_lock.acquire()
         page = self.get_page(pid, False, num_cols)
+        self.global_lock.release()
         return page
 
     def get_base_page(self, pid):
+        self.global_lock.acquire()
         page = self.get_page(pid, True, None)
+        self.global_lock.release()
         return page
 
     def get_page(self, pid, isBase, num_cols):
         # TODO optimize by removed init calls above just pass a bool
-
-        self.global_lock.acquire()
 
         # Removed
         #self.buff_lock.acquire()
@@ -104,7 +108,6 @@ class BufferPool:
 
         page_rep.place_pin()
         if page_rep.get_in_memory():
-            self.global_lock.release()
             return self.page_rep_directory[pid].get_page()
 
         # Otherwise check if there is space in the bufferpool
@@ -127,8 +130,6 @@ class BufferPool:
 
         page = self.page_rep_directory[pid].get_page()
         self.page_pid_in_mem.add(pid)
-
-        self.global_lock.release()
 
         return page
 
