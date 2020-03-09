@@ -175,9 +175,9 @@ class Table:
         self.__merge()
 
     def start_merge_process(self):
-        pass
-        # while self.run_merge:
-        #     self.__merge()
+        #pass
+        while self.run_merge:
+            self.__merge()
 
     def __merge(self):
         # Grab a tail page to merge.
@@ -198,13 +198,21 @@ class Table:
         self.tps = records[0][0]
         self.tps_lock.release()
 
+        base_rids = []
+
         # All the base pages that are referenced in the tail page.
         referenced_pids = set()
         for key in tail_page.records.keys():
+            base_rids.append(self.base_rid[key])
             for pid in self.rid_directory[self.base_rid[key]]:
                 referenced_pids.add(pid)
 
         self.bufferpool.close_page(tail_pid)
+
+        # Lock all of the base rids that we will need for merge.
+        for base_rid in base_rids:
+            while not self.rid_lock_directory[base_rid].grab_read():
+                continue
 
         # References from old pids to new pids.
         base_page_copies = {}
@@ -246,6 +254,10 @@ class Table:
             # self.rid_dir_lock.acquire()
             self.rid_directory[record] = [base_page_copies[rid] for rid in self.rid_directory[record]] #TODO should be swapping the pages instead
             # self.rid_dir_lock.release()
+
+        # Release all of the locks that we grab.
+        for base_rid in base_rids:
+            self.rid_lock_directory[base_rid].release_read()
 
         self.merge_count += 1
 
@@ -455,8 +467,8 @@ class Table:
         self.indirection[rid] = tail_rid
         self.rid_directory[tail_rid] = pid
 
-        if self.full_tail_pages.qsize() > 0:
-           self.start_merge_once()
+        #if self.full_tail_pages.qsize() > 0:
+        #   self.start_merge_once()
 
     def sum(self, start_range, end_range, aggregate_column):
         result = 0
