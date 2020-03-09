@@ -42,8 +42,8 @@ class Database():
 
     def close(self):
         # TODO join merges
-        self.close_bufferpool()
         self.close_tables()
+        self.close_bufferpool()
 
     def close_bufferpool(self):
         with open(path.join(self.folder, 'bufferpool.pkl'), 'wb') as f:
