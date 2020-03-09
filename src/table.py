@@ -13,6 +13,8 @@ from threading import Thread, Lock
 from index import Index
 from page import BasePage
 
+from config import *
+
 import pdb
 
 class RecordLock:
@@ -45,6 +47,15 @@ class RecordLock:
     def release_write(self):
         with self.lock:
             self.write_counter -= 1
+
+    def upgrade_rw(self):
+        with self.lock:
+            if self.read_counter > 1 or self.write_counter > 0:
+                return False
+            self.read_counter -= 1
+            self.write_counter += 1
+            return True
+
 
 class Record:
 
@@ -112,7 +123,9 @@ class Table:
         self.indirection = {}
 
         # A reference to the current base pages and the tail page, stores pids
+        self.base_page_pids_lock = Lock()
         self.base_page_pids = [None] * num_columns
+        self.tail_page_pid_lock = Lock()
         self.tail_page_pid = None
 
         self.rid_counter = 1
@@ -162,17 +175,9 @@ class Table:
         self.__merge()
 
     def start_merge_process(self):
+        # pass
         while self.run_merge:
             self.__merge()
-
-    def __release_locks(self, locks):
-        for lock_type, rid in locks:
-            if lock_type == 'read':
-                self.rid_lock_directory[rid].release_read()
-            elif lock_type == 'write':
-                self.rid_lock_directory[rid].release_write()
-            else:
-                raise ValueError('{} not a valid lock type'.format(lock_type))
 
     def __merge(self):
         # Grab a tail page to merge.
@@ -256,7 +261,7 @@ class Table:
         for i, base_page in enumerate(self.base_page_pids):
 
             pid = base_page
-            page = self.bufferpool.get_base_page(base_page)
+            page = self.bufferpool.get_base_page(pid)
 
             # Check to see if base page for column has space. If not, allocate
             # new page, and update references to it.
@@ -283,6 +288,12 @@ class Table:
         self.rid_directory[rid] = rids
         # self.rid_dir_lock.release()
         self.indirection[rid] = rid
+
+    def num_pins(self):
+        total = 0
+        for lock in self.rid_lock_directory.values():
+            total += (lock.write_counter + lock.read_counter)
+        return total
 
     def select(self, key, column, query_columns):
         #self.temp_lock.acquire()
@@ -330,7 +341,11 @@ class Table:
                 # self.rid_dir_lock.release()
                 #print(tail_pid)
                 tail_page = self.bufferpool.get_tail_page(tail_pid, self.num_columns)
-                vals = list(tail_page.read(tail_rid))
+                # tail_page.lock.acquire()
+                try:
+                    vals = list(tail_page.read(tail_rid))
+                except:
+                    print('here')
 
                 self.bufferpool.close_page(tail_pid)
 
@@ -406,19 +421,21 @@ class Table:
                 print(" ")
             self.bufferpool.close_page(pid)
 
+        self.tail_page_pid_lock.acquire()
         pid = self.tail_page_pid
         tail_page = self.bufferpool.get_tail_page(self.tail_page_pid, self.num_columns)
 
         # Allocate new tail page, update references, and store the full tail page.
         if not tail_page.has_capacity():
-            self.bufferpool.close_page(self.tail_page_pid)
-            self.full_tail_pages.put(self.tail_page_pid)
+            self.bufferpool.close_page(pid)
+            self.full_tail_pages.put(pid)
 
             new_pid = self.bufferpool.new_tail_page(self.num_columns)
             self.tail_page_pid = new_pid
             tail_page = self.bufferpool.get_tail_page(new_pid, self.num_columns)
             pid = new_pid
 
+        self.tail_page_pid_lock.release()
         # Create new record in tail page.
         tail_rid = self.new_rid()
         tail_page.new_record(tail_rid, result)
@@ -436,9 +453,9 @@ class Table:
         # Update references for the indirection column, and rid_directory.
         self.indirection[tail_rid] = self.indirection[rid]
         self.indirection[rid] = tail_rid
-        self.rid_directory[tail_rid] = self.tail_page_pid
+        self.rid_directory[tail_rid] = pid
 
-        #if self.full_tail_pages.qsize() > 0:
+        # if self.full_tail_pages.qsize() > 0:
         #    self.start_merge_once()
 
     def sum(self, start_range, end_range, aggregate_column):
@@ -451,6 +468,62 @@ class Table:
                 result += vals[0].columns[aggregate_column]
 
         return result
+
+    def select_lock(self, key, column, locked):
+        rids = self.indexes[column].get(key)
+        # TODO: Should this return true of false??
+        if rids is None:
+            return True
+        for rid in rids:
+            if rid in locked.keys():
+                continue
+            if self.rid_lock_directory[rid].grab_read():
+                locked[rid] = RWPins.READ
+            else:
+                for locked_rid in locked:
+                    self.rid_lock_directory[locked_rid].release_read()
+                return False
+        return True
+
+    def delete_lock(self, key, locked):
+        return self.write_lock(key, locked)
+
+    def update_lock(self, key, locked):
+        return self.write_lock(key, locked)
+
+    def increment_lock(self, key, locked):
+        return self.write_lock(key, locked)
+
+    def write_lock(self, key, locked):
+        rid = self.indexes[self.key_index].get(key)[0]
+        # If the rid is already locked try and upgrade it and fail if you cant.
+        if rid in locked:
+            if locked[rid] == RWPins.READ:
+                if self.rid_lock_directory[rid].upgrade_rw():
+                    locked[rid] == RWPins.WRITE
+                    return True
+                else:
+                    return False
+        if self.rid_lock_directory[rid].grab_write():
+            locked[rid] = RWPins.WRITE
+            return True
+        else:
+            return False
+
+    def sum_lock(self, start_range, end_range, aggregate_column, locked):
+        for i in range(start_range, end_range + 1):
+            if not self.select_lock(i, aggregate_column, locked):
+                return False
+        return True
+
+    def release_locks(self, locks):
+        for rid, type in locks.items():
+            if type == RWPins.READ:
+                self.rid_lock_directory[rid].release_read()
+            elif type == RWPins.WRITE:
+                self.rid_lock_directory[rid].release_write()
+            else:
+                raise ValueError('{} not a valid lock type'.format(lock_type))
 
     def dump(self):
         full_tail_pages = list(self.full_tail_pages.queue)
