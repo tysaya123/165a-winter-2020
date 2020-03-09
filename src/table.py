@@ -3,7 +3,7 @@ RID_COLUMN = 1
 TIMESTAMP_COLUMN = 2
 SCHEMA_ENCODING_COLUMN = 3
 
-MERGE_SINGLE_THREAD = True
+MERGE_SINGLE_THREAD = False
 
 import datetime
 
@@ -177,7 +177,7 @@ class Table:
         self.__merge()
 
     def start_merge_process(self):
-        if MERGE_SINGLE_THREAD: pass
+        if MERGE_SINGLE_THREAD: return
         while self.run_merge:
             self.__merge()
 
@@ -196,10 +196,6 @@ class Table:
         records = [[k] + v for k, v in tail_page.records.items()]
         records = sorted(records, key=lambda x: x[0], reverse=True)
 
-        self.tps_lock.acquire()
-        self.tps = records[0][0]
-        self.tps_lock.release()
-
         base_rids = []
 
         # All the base pages that are referenced in the tail page.
@@ -214,7 +210,7 @@ class Table:
         # Lock all of the base rids that we will need for merge.
         if not MERGE_SINGLE_THREAD:
             for base_rid in base_rids:
-                while not self.rid_lock_directory[base_rid].grab_write():
+                while not self.rid_lock_directory[base_rid].grab_read():
                     continue
 
         # References from old pids to new pids.
@@ -261,7 +257,13 @@ class Table:
         # Release all of the locks that we grab.
         if not MERGE_SINGLE_THREAD:
             for base_rid in base_rids:
-                self.rid_lock_directory[base_rid].release_write()
+                self.rid_lock_directory[base_rid].release_read()
+
+
+
+        # self.tps_lock.acquire()
+        # self.tps = records[0][0]
+        # self.tps_lock.release()
 
         self.merge_count += 1
 
@@ -471,8 +473,9 @@ class Table:
         self.indirection[rid] = tail_rid
         self.rid_directory[tail_rid] = pid
 
-        if self.full_tail_pages.qsize() > 0:
-          self.start_merge_once()
+        if MERGE_SINGLE_THREAD:
+            if self.full_tail_pages.qsize() > 0:
+              self.start_merge_once()
 
     def sum(self, start_range, end_range, aggregate_column):
         result = 0
