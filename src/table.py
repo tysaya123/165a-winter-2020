@@ -175,9 +175,9 @@ class Table:
         self.__merge()
 
     def start_merge_process(self):
-        # pass
-        while self.run_merge:
-            self.__merge()
+        pass
+        # while self.run_merge:
+        #     self.__merge()
 
     def __merge(self):
         # Grab a tail page to merge.
@@ -455,8 +455,8 @@ class Table:
         self.indirection[rid] = tail_rid
         self.rid_directory[tail_rid] = pid
 
-        # if self.full_tail_pages.qsize() > 0:
-        #    self.start_merge_once()
+        if self.full_tail_pages.qsize() > 0:
+           self.start_merge_once()
 
     def sum(self, start_range, end_range, aggregate_column):
         result = 0
@@ -473,15 +473,13 @@ class Table:
         rids = self.indexes[column].get(key)
         # TODO: Should this return true of false??
         if rids is None:
-            return True
+            return False
         for rid in rids:
-            if rid in locked.keys():
+            if rid in locked:
                 continue
             if self.rid_lock_directory[rid].grab_read():
                 locked[rid] = RWPins.READ
             else:
-                for locked_rid in locked:
-                    self.rid_lock_directory[locked_rid].release_read()
                 return False
         return True
 
@@ -500,7 +498,7 @@ class Table:
         if rid in locked:
             if locked[rid] == RWPins.READ:
                 if self.rid_lock_directory[rid].upgrade_rw():
-                    locked[rid] == RWPins.WRITE
+                    locked[rid] = RWPins.WRITE
                     return True
                 else:
                     return False
