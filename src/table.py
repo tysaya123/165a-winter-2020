@@ -3,17 +3,48 @@ RID_COLUMN = 1
 TIMESTAMP_COLUMN = 2
 SCHEMA_ENCODING_COLUMN = 3
 
+import datetime
+
 import copy
 import pickle
 from queue import Queue
-from multiprocessing import Lock
-import threading
+from threading import Thread, Lock
 
 from index import Index
 from page import BasePage
 
 import pdb
 
+class RecordLock:
+    def __init__(self):
+        self.write_counter = 0
+        self.read_counter = 0
+        self.lock = Lock()
+
+    # grab_read and grab_write attempts to grab locks for reading / writing.
+    # If they are not able to, they return False, and the query should abort.
+
+    def grab_read(self):
+        with self.lock:
+            if self.write_counter > 0:
+                return False
+            self.read_counter += 1
+            return True
+
+    def grab_write(self):
+        with self.lock:
+            if self.read_counter > 0 or self.write_counter > 0:
+                return False
+            self.write_counter += 1
+            return True
+
+    def release_read(self):
+        with self.lock:
+            self.read_counter -= 1
+
+    def release_write(self):
+        with self.lock:
+            self.write_counter -= 1
 
 class Record:
 
@@ -51,8 +82,14 @@ class Table:
         self.full_tail_pages = Queue()
 
         # needs to init all locks early in case we init from a pickle because a lock cannot be pickled
-        self.tps_lock = threading.Lock()
-        self.rid_dir_lock = threading.Lock()
+        self.tps_lock = Lock()
+        # self.rid_dir_lock = Lock()
+
+        self.rid_counter_lock = Lock()
+        self.temp_lock = Lock()
+
+        # Holds all of the locking information for records.
+        self.rid_lock_directory = {}
 
         # This happens when initializing from a pickled file.
         if name is None:
@@ -110,9 +147,14 @@ class Table:
                 and self.rid_counter == other.rid_counter and self.full_tail_pages.qsize() == other.full_tail_pages.qsize())
 
     def new_rid(self):
+        self.rid_counter_lock.acquire()
 
         self.rid_counter += 1
-        return self.rid_counter - 1
+        rid = self.rid_counter - 1
+
+        self.rid_counter_lock.release()
+
+        return rid
 
     def start_merge_once(self):
         if self.full_tail_pages.empty():
@@ -123,10 +165,19 @@ class Table:
         while self.run_merge:
             self.__merge()
 
+    def __release_locks(self, locks):
+        for lock_type, rid in locks:
+            if lock_type == 'read':
+                self.rid_lock_directory[rid].release_read()
+            elif lock_type == 'write':
+                self.rid_lock_directory[rid].release_write()
+            else:
+                raise ValueError('{} not a valid lock type'.format(lock_type))
+
     def __merge(self):
         # Grab a tail page to merge.
         try:
-            tail_pid = self.full_tail_pages.get(block=True, timeout=1)
+            tail_pid = self.full_tail_pages.get(block=True, timeout=0.2)
         except:
             return
         tail_page = self.bufferpool.get_tail_page(tail_pid, self.num_columns)
@@ -135,13 +186,12 @@ class Table:
         # It is perhaps slow to manually sort the tail records within this
         # page by tid. There might be a way to get this information faster.
 
-        self.tps_lock.acquire()
-        self.bufferpool.acquire_lock()
-        self.rid_dir_lock.acquire()
-
         records = [[k] + v for k, v in tail_page.records.items()]
         records = sorted(records, key=lambda x: x[0], reverse=True)
+
+        self.tps_lock.acquire()
         self.tps = records[0][0]
+        self.tps_lock.release()
 
         # All the base pages that are referenced in the tail page.
         referenced_pids = set()
@@ -172,6 +222,7 @@ class Table:
 
         # Update the new base records from the records of the tail page.
         for record in records:
+
             referenced_rid = self.base_rid[record[0]]
             # If we already updated the base record, continue.
             if referenced_rid in already_updated:
@@ -187,19 +238,17 @@ class Table:
 
         # Now update references to new pages.
         for record in already_updated:  # TODO Should this be keys?
+            # self.rid_dir_lock.acquire()
             self.rid_directory[record] = [base_page_copies[rid] for rid in self.rid_directory[record]] #TODO should be swapping the pages instead
+            # self.rid_dir_lock.release()
 
         self.merge_count += 1
 
-        self.rid_dir_lock.release()
-        self.tps_lock.release()
-        self.bufferpool.release_lock()
-
     def insert(self, *columns):
-        self.bufferpool.acquire_lock()
-        self.rid_dir_lock.acquire()
         # TODO: Check if record already exists
+
         rid = self.new_rid()
+        self.rid_lock_directory[rid] = RecordLock()
 
         self.rid_directory[rid] = [None] * self.num_columns
         rids = []
@@ -230,19 +279,16 @@ class Table:
         for i in range(self.num_columns):
             self.indexes[i].set(columns[i], rid)
 
+        # self.rid_dir_lock.acquire()
         self.rid_directory[rid] = rids
+        # self.rid_dir_lock.release()
         self.indirection[rid] = rid
 
-        self.rid_dir_lock.release()
-        self.bufferpool.release_lock()
-
     def select(self, key, column, query_columns):
-        self.tps_lock.acquire()
-        self.bufferpool.acquire_lock()
-        self.rid_dir_lock.acquire()
-
+        #self.temp_lock.acquire()
         rids = self.indexes[column].get(key)
         if rids is None:
+            #self.temp_lock.release()
             return None
 
         # Stores all the records for all the rids given.
@@ -252,7 +298,9 @@ class Table:
             pids = self.rid_directory[rid]
 
             # If there is an update, see if latest update is merged in already.
+            self.tps_lock.acquire()
             update_is_merged = self.tps >= self.indirection[rid]
+            self.tps_lock.release()
 
             # Result of the select
             vals = []
@@ -277,7 +325,10 @@ class Table:
             if has_dirty_bit:
                 # TODO: Check whether this actually gets proper values or not.
                 tail_rid = self.indirection[rid]
+                # self.rid_dir_lock.acquire()
                 tail_pid = self.rid_directory[tail_rid]
+                # self.rid_dir_lock.release()
+                #print(tail_pid)
                 tail_page = self.bufferpool.get_tail_page(tail_pid, self.num_columns)
                 vals = list(tail_page.read(tail_rid))
 
@@ -285,17 +336,10 @@ class Table:
 
             records.append(Record(rid, i, vals))
 
-        # self.bufferpool.check_all_pins()
-        self.rid_dir_lock.release()
-        self.tps_lock.release()
-        self.bufferpool.release_lock()
-
+        #self.temp_lock.release()
         return records
 
     def delete(self, key):
-        self.bufferpool.acquire_lock()
-        self.rid_dir_lock.acquire()
-
         base_rid = self.indexes[self.key_index].get(key)[0]
         if base_rid is None:
             return
@@ -331,17 +375,14 @@ class Table:
             curr_page.delete_record(curr_rid)
             self.bufferpool.close_page(curr_pid)
 
-        self.rid_dir_lock.release()
-        self.bufferpool.release_lock()
-
     def update(self, key, *columns):
         rid = self.indexes[self.key_index].get(key)[0]
         if rid is None:
             return
 
-        self.rid_dir_lock.acquire()
+        # self.rid_dir_lock.acquire()
         pids = self.rid_directory[rid]
-        self.rid_dir_lock.release()
+        # self.rid_dir_lock.release()
 
         to_select = [1 if x is None else 0 for x in columns]
         values = self.select(key, self.key_index, to_select)[0].columns
@@ -397,9 +438,8 @@ class Table:
         self.indirection[rid] = tail_rid
         self.rid_directory[tail_rid] = self.tail_page_pid
 
-        self.rid_dir_lock.release()
-        self.tps_lock.release()
-        self.bufferpool.release_lock()
+        #if self.full_tail_pages.qsize() > 0:
+        #    self.start_merge_once()
 
     def sum(self, start_range, end_range, aggregate_column):
         result = 0

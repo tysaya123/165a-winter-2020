@@ -1,18 +1,29 @@
-from multiprocessing import Queue
+# TODO: Remember to remove all checks, asserts, etc. for optimization
+# TODO: Remember to remove all calls to check_all_pins()
+import logging
+import mmap
+import pickle
 
+from multiprocessing import Lock
+from random import choice
 from os import path
 
-from config import BufferPoolCalls, BUFFERPOOL_SIZE, PAGE_SIZE
+from config import PAGE_SIZE, BUFFERPOOL_SIZE
 from page import BasePage, TailPage
 
-
-# Should worry if read and all being read
 class BufferPool:
-    def __init__(self, queues, folder):
-        self.queues = queues
-        self.pool = [PageRep() for _ in range(BUFFERPOOL_SIZE)]
-        self.pool_full = False
-        self.mem_offsets = {}
+    def __init__(self, folder):
+        self.vacate_count = 0
+        self.global_lock = Lock()
+        self.buff_lock = Lock()
+
+
+        self.page_rep_directory = {}
+
+        # Holds the pids for those pages that are in memory.
+        self.page_pid_in_mem = set()
+
+        self.pid_counter = 1
 
         self.memory_file_name = "memory_file.txt"
         file_path = path.join(folder, self.memory_file_name)
@@ -20,189 +31,287 @@ class BufferPool:
             self.mem_file = open(file_path, "w+b")
         else:
             self.mem_file = open(file_path, "r+b")
-
         # When num_open_memory > BUFFERPOOL_SIZE then begin evicting
         self.num_open_page = 0
 
-    def serveNextInQueue(self):
-        # Get the next request from the queue first element should be the function to call
-        for queue in self.queues:
-            try:
-                next_request = queue.get()
-            except:
-                continue
-            # TODO: Optimize by which happens most freq
-            if next_request[0] == BufferPoolCalls.READ_TAIL_PAGE:
-                self.readTailPage(queue, next_request[1:])
-            elif next_request[0] == BufferPoolCalls.READ_BASE_PAGE:
-                self.readBasePage(queue, next_request[1:])
-            elif next_request[0] == BufferPoolCalls.WRITE_TAIL_PAGE:
-                self.writeTailPage(queue, next_request[1:])
-            elif next_request[0] == BufferPoolCalls.WRITE_BASE_PAGE:
-                self.writeBasePage(queue, next_request[1:])
-            elif next_request[0] == BufferPoolCalls.WRITE_NEW_TAIL_PAGE:
-                self.writeNewTailPage(queue, next_request[1:])
-            elif next_request[0] == BufferPoolCalls.WRITE_NEW_BASE_PAGE:
-                self.writeNewBasePage(queue, next_request[1:])
-            elif next_request[0] == BufferPoolCalls.CLOSE_PAGE:
-                self.closePage(next_request[1:])
+    def new_base_page(self):
+        self.global_lock.acquire()
 
-    def readTailPage(self, param):
-        pass
+        page_rep = PageRep()
+        page_rep.set_page(BasePage())
+        page_rep.get_page().dirty = True
 
-    def readBasePage(self, param):
-        pass
+        if self.num_open_page >= BUFFERPOOL_SIZE:
+            # logging.debug("not enough space")
+            # self.buff_lock.acquire()
+            self.vacate()
+            # self.buff_lock.release()
 
-    # Param[0] = pid, param[1] = num_cols
-    def writeTailPage(self, queue, param):
-        # Will place the page in the queue if it exists(or will place False if its being used) else will return false
-        if self.returnPageInPool(param): return
-        # If the page was not already in the bufferpool find a space for it
-        page_data = self.getPageData(param)
-        page = TailPage(param[1])
+
+        self.num_open_page += 1
+        self.page_rep_directory[self.pid_counter] = page_rep
+        self.page_pid_in_mem.add(self.pid_counter)
+        self.pid_counter += 1
+
+        self.global_lock.release()
+
+        return self.pid_counter - 1
+
+    def new_tail_page(self, num_cols):
+        self.global_lock.acquire()
+
+        if num_cols <= 0:
+            raise ValueError('Number of columns cannot be <= 0')
+
+        page_rep = PageRep()
+        page_rep.set_page(TailPage(num_cols))
+        page_rep.get_page().dirty = True
+
+        if self.num_open_page >= BUFFERPOOL_SIZE:
+            # logging.debug("not enough space")
+            # self.buff_lock.acquire()
+            self.vacate()
+            # self.buff_lock.release()
+
+
+        self.num_open_page += 1
+        self.page_rep_directory[self.pid_counter] = page_rep
+        self.page_pid_in_mem.add(self.pid_counter)
+        self.pid_counter += 1
+
+        self.global_lock.release()
+
+        return self.pid_counter - 1
+
+    def get_tail_page(self, pid, num_cols):
+        page = self.get_page(pid, False, num_cols)
+        return page
+
+    def get_base_page(self, pid):
+        page = self.get_page(pid, True, None)
+        return page
+
+    def get_page(self, pid, isBase, num_cols):
+        # TODO optimize by removed init calls above just pass a bool
+
+        self.global_lock.acquire()
+
+        # Removed
+        #self.buff_lock.acquire()
+        page_rep = self.page_rep_directory[pid]
+        # Removed
+        #self.buff_lock.release()
+
+        page_rep.place_pin()
+        if page_rep.get_in_memory():
+            self.global_lock.release()
+            return self.page_rep_directory[pid].get_page()
+
+        # Otherwise check if there is space in the bufferpool
+        # logging.debug(num_open_page + ':' + BUFFERPOOL_SIZE)
+        if self.num_open_page >= BUFFERPOOL_SIZE:
+            # logging.debug("not enough space")
+            self.vacate()
+
+        # self.buff_lock.release()
+        # Increment the number of pages in the bufferpool
+        self.num_open_page += 1
+
+        # Get the page from memory
+        if isBase: page = BasePage()
+        else: page = TailPage(num_cols)
+        page_data = self.read_page_from_memory(page_rep)
         page.unpack(page_data)
+        self.page_rep_directory[pid].set_page(page)
+        page_rep.set_in_memory(True)
 
-        # Find a open space for the page and set its data
-        open_page_rep: PageRep = self.getOpenPool()
-        open_page_rep.set_page(page)
-        open_page_rep.set_rid(param[0])
-        open_page_rep.place_write()
+        page = self.page_rep_directory[pid].get_page()
+        self.page_pid_in_mem.add(pid)
 
-        queue.put(page)
+        self.global_lock.release()
 
-    # Param[0] = pid
-    def writeBasePage(self, queue: Queue, param):
-        # Will place the page in the queue if it exists(or will place False if its being used) else will return false
-        if self.returnPageInPool(param): return
-        # If the page was not already in the bufferpool find a space for it
+        return page
 
-        page_data = self.getPageData(param)
-        page = BasePage()
-        page.unpack(page_data)
+    def close_page(self, pid):
+        self.global_lock.acquire()
 
-        # Find a open space for the page and set its data
-        open_page_rep: PageRep = self.getOpenPool()
-        open_page_rep.set_page(page)
-        open_page_rep.set_rid(param[0])
-        open_page_rep.place_write()
+        # self.buff_lock.acquire()
+        if self.page_rep_directory[pid] is None:
+            raise KeyError('Page with pid {} does not exist'.format(pid))
+        self.page_rep_directory[pid].remove_pin()
+        # self.buff_lock.release()
 
-        queue.put(page)
+        self.global_lock.release()
 
-    def getPageData(self, param):
-        page_offset = self.mem_offsets[param[0]]
-        self.mem_file.seek(page_offset)
-        page_data = self.mem_file.read(PAGE_SIZE)
-        return page_data
+    def read_page_from_memory(self, page_rep):
+        offset = page_rep.get_memory_offset()
+        self.mem_file.seek(offset)
+        return self.mem_file.read(PAGE_SIZE)
 
-    def returnPageInPool(self, param):
-        page_rep = self.getRidInPool(param[0])
-        if page_rep is not None:
-            # If someone else is already reading then return false otherwise return the page
-            if page_rep.get_read() > 0 or page_rep.get_write() > 0:
-                queue.put(False)
-            queue.put(page_rep.get_page())
-            return True
-        return False
+    def vacate(self):
+        # num_to_vacate = self.vacate_count + 1
+        flushed = False
+        while not flushed:
+            #print(num_to_vacate, self.vacate_count)
+            # Choose a random pid from the page directory
 
-    # Param[0] = pid, param[1] = num_cols
-    def writeNewTailPage(self, queue: Queue, param):
-        page = TailPage(param[1])
+            # Removed
+            #self.buff_lock.acquire()
 
-        self.writeNewPage(page, param, queue)
+            pid_to_flush = choice(tuple(self.page_pid_in_mem))
 
-    # Param[0] = pid
-    def writeNewBasePage(self, queue: Queue, param):
-        page = BasePage()
+            page_rep = self.page_rep_directory[pid_to_flush]
+            # Removed
+            #self.buff_lock.release()
 
-        self.writeNewPage(page, param, queue)
+            # page_rep.pin_lock.acquire()
+            # page_rep.pin_lock.release()
+            if page_rep.pins > 0: continue
 
-    def writeNewPage(self, page, param, queue):
-        self.mem_file.seek(0, 2)
-        mem_loc = self.mem_file.tell()
-        # Write to save space for the page
-        self.mem_file.write(page.pack())
-        # Set the offset to be the end of the file
-        self.mem_offsets[param[0]] = mem_loc
-        open_page_rep: PageRep = self.getOpenPool()
-        open_page_rep.set_page(page)
-        open_page_rep.set_rid(param[0])
-        open_page_rep.place_write()
-        queue.put(page)
+            flushed = self.flush(pid_to_flush)
+            if flushed:
+                self.vacate_count += 1
+                self.num_open_page -= 1
 
-    # Will find a open location in the bufferpool and will vacate if necessary
-    def getOpenPool(self):
-        if self.pool_full:
+    def flush_all(self):
+        self.global_lock.acquire()
+
+        for pid in self.page_rep_directory:
+            page_rep = self.page_rep_directory[pid]
+            if page_rep.get_in_memory():
+                self.flush(pid)
+
+        self.global_lock.release()
+
+    def flush(self, pid):
+        # TODO remove from directory
+        # TODO add check for pins and return false if being used
+        # Removed
+        #self.buff_lock.acquire()
+        page_rep = self.page_rep_directory[pid]
+        self.page_pid_in_mem.remove(pid)
+        # page_rep.pin_lock.acquire()
+
+        if page_rep.pins > 0:
+            raise ValueError('Cannot flush a page that is pinned')
+
+        # TODO should change get to not add a pin
+        page = page_rep.page
+        if page is None:
+            raise TypeError("Expected page in flush but got none")
+        if page.dirty:
+            # We only need to write to disk if the page is dirty
+            if page_rep.get_memory_offset() == -1:
+                self.mem_file.seek(0, 2)
+                # Set the offset to be the end of the file
+                page_rep.set_memory_offset(self.mem_file.tell())
+            else:
+                offset = page_rep.get_memory_offset()
+                # logging.debug("off" + str(offset))
+                self.mem_file.seek(offset)
+
+
+            data = page.pack()
+
+            self.mem_file.write(data)
+            self.mem_file.flush()
+
+        # Removed
+        #self.buff_lock.release()
+        # logging.debug("flushed:")
+        # logging.debug(page_rep.get_page)
+
+        page_rep.set_page(None)
+
+        # logging.debug(page_rep.get_page)
+
+        page_rep.set_in_memory(False)
+        # page_rep.pin_lock.release()
+
+        return True
+
+    def close_file(self):
+        self.mem_file.close()
+
+    def dump(self):
+        self.global_lock.acquire()
+
+        self.close_file()
+        #for pid, page_rep in self.page_rep_directory.items():
+        #    # page_rep.pin_lock.acquire()
+        #    pins = page_rep.pins
+        #    # page_rep.pin_lock.release()
+        #    if page_rep.pins != 0:
+        #        raise ValueError("Page Rep had non-zero pin count while dumping")
+        #    #page_rep.pin_lock = None
+
+        data = [self.page_rep_directory, self.pid_counter]
+        pickle_data = pickle.dumps(data)
+
+        #self.initialize_locks()
+
+        self.global_lock.release()
+
+        return pickle_data
+
+    def initialize_locks(self):
+        for _, page_rep in self.page_rep_directory.items():
             pass
-            # return = self.vacate()
-        else:
-            open = None
-            for page_rep in self.pool:
-                if page_rep.page is None:
-                    return page_rep
-            if open is None:
-                self.pool_full = True
-                # return self.vacate()
+            #page_rep.pin_lock = Lock()
 
-    # Will remove a write pin if it exists and a read pin if there is no write pin
-    # Param[0] = pid
-    def closePage(self, param):
-        page_rep = self.getRidInPool(param[0])
-        if page_rep is None:
-            raise KeyError("Could not find Page in Pool with Rid")
-        if page_rep.get_write() == 1:
-            page_rep.remove_write()
-            if page_rep.get_read() > 0:
-                raise ValueError("Had read pins as write pin was being removed")
-        else:
-            page_rep.remove_read()
-            if page_rep.get_read() < 0:
-                raise ValueError("Cannot have less than 0 read pins")
+    def load(self, data):
+        self.global_lock.acquire()
 
-    # Will get a page_rep from the bufferpool with the Rid and will return none if it is not in the bufferpool
-    def getRidInPool(self, rid):
-        for page_rep in self.pool:
-            if page_rep.get_rid() == rid:
-                return page_rep
-        return None
+        [self.page_rep_directory, self.pid_counter] = pickle.loads(data)
+
+        self.global_lock.release()
+        #self.initialize_locks()
+
+    def check_all_pins(self):
+        for pid, page_rep in self.page_rep_directory.items():
+            if page_rep.pins != 0:
+                raise ValueError('Number of pins on page should be 0')
+
+    def get_num_pins(self):
+        total = 0
+        for page_rep in list(self.page_rep_directory.values()):
+            total += page_rep.get_num_pins()
 
 
 class PageRep:
     def __init__(self):
-        self.read_pins = 0
-        self.write_pin = 0
+        self.in_memory = True
+        self.memory_offset = -1
+        self.pins = 0
+        # self.pin_lock = Lock()
         self.page = None
-        self.rid = None
 
     def set_page(self, page):
         self.page = page
 
-    def set_rid(self, rid):
-        self.rid = rid
-
-    def get_rid(self):
-        return self.rid
-
     def get_page(self):
         return self.page
 
-    def get_write(self):
-        return self.write_pin
+    def set_in_memory(self, is_in_memory):
+        self.in_memory = is_in_memory
 
-    def get_read(self):
-        return self.read_pins
+    def get_in_memory(self):
+        return self.in_memory
 
-    def place_read(self):
-        self.read_pins += 1
+    def set_memory_offset(self, offset):
+        self.memory_offset = offset
 
-    def place_write(self):
-        self.write_pin += 1
+    def get_memory_offset(self):
+        return self.memory_offset
 
-    def remove_read(self):
-        if self.read_pins == 0:
+    def place_pin(self):
+        # self.pin_lock.acquire()
+        self.pins += 1
+        # self.pin_lock.release()
+
+    def remove_pin(self):
+        if self.pins == 0:
             raise ValueError('Number of pins cannot be less than 0')
-        self.read_pins -= 1
-
-    def remove_write(self):
-        if self.write_pin == 0:
-            raise ValueError('Number of pins cannot be less than 0')
-        self.write_pin -= 1
+        # self.pin_lock.acquire()
+        self.pins -= 1
+        # self.pin_lock.release()
