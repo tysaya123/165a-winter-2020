@@ -23,14 +23,20 @@ class SchemaEncoding(Enum):
     DIRTY = 1
 
 
-class BufferpoolCalls(Enum):
+class RWPins(Enum):
+    READ = 0
+    WRITE = 1
+
+
+class BufferPoolCalls(Enum):
     READ_TAIL_PAGE = 0
     READ_BASE_PAGE = 1
     WRITE_TAIL_PAGE = 2
     WRITE_BASE_PAGE = 3
     WRITE_NEW_TAIL_PAGE = 4
     WRITE_NEW_BASE_PAGE = 5
-    CLOSE_PAGE = 6
+    CLOSE_READ_PAGE = 6
+    CLOSE_WRITE_PAGE = 7
 
 
 def init():
