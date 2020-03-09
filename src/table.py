@@ -3,6 +3,8 @@ RID_COLUMN = 1
 TIMESTAMP_COLUMN = 2
 SCHEMA_ENCODING_COLUMN = 3
 
+MERGE_SINGLE_THREAD = True
+
 import datetime
 
 import copy
@@ -175,7 +177,7 @@ class Table:
         self.__merge()
 
     def start_merge_process(self):
-        #pass
+        if MERGE_SINGLE_THREAD: pass
         while self.run_merge:
             self.__merge()
 
@@ -210,9 +212,10 @@ class Table:
         self.bufferpool.close_page(tail_pid)
 
         # Lock all of the base rids that we will need for merge.
-        for base_rid in base_rids:
-            while not self.rid_lock_directory[base_rid].grab_read():
-                continue
+        if not MERGE_SINGLE_THREAD:
+            for base_rid in base_rids:
+                while not self.rid_lock_directory[base_rid].grab_write():
+                    continue
 
         # References from old pids to new pids.
         base_page_copies = {}
@@ -256,8 +259,9 @@ class Table:
             # self.rid_dir_lock.release()
 
         # Release all of the locks that we grab.
-        for base_rid in base_rids:
-            self.rid_lock_directory[base_rid].release_read()
+        if not MERGE_SINGLE_THREAD:
+            for base_rid in base_rids:
+                self.rid_lock_directory[base_rid].release_write()
 
         self.merge_count += 1
 
@@ -467,8 +471,8 @@ class Table:
         self.indirection[rid] = tail_rid
         self.rid_directory[tail_rid] = pid
 
-        #if self.full_tail_pages.qsize() > 0:
-        #   self.start_merge_once()
+        if self.full_tail_pages.qsize() > 0:
+          self.start_merge_once()
 
     def sum(self, start_range, end_range, aggregate_column):
         result = 0
@@ -514,6 +518,8 @@ class Table:
                     return True
                 else:
                     return False
+            else:
+                return True
         if self.rid_lock_directory[rid].grab_write():
             locked[rid] = RWPins.WRITE
             return True
