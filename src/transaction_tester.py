@@ -6,6 +6,11 @@ from transaction_worker import TransactionWorker
 import threading
 from random import choice, randint, sample, seed
 
+
+from os import path
+import shutil
+folder = path.expanduser("~/ECS165")
+shutil.rmtree(folder, ignore_errors=True)
 db = Database()
 db.open('~/ECS165')
 grades_table = db.create_table('Grades', 5, 0)
@@ -13,7 +18,7 @@ grades_table = db.create_table('Grades', 5, 0)
 keys = []
 records = {}
 num_threads = 1
-seed(8739878934)
+# seed(8739878934)
 
 # Generate random records
 for i in range(0, 10000):
