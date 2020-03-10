@@ -170,9 +170,9 @@ class BufferPool:
             if page_rep.pins > 0: continue
 
             flushed = self.flush(pid_to_flush)
-            if flushed:
-                self.vacate_count += 1
-                self.num_open_page -= 1
+
+        self.vacate_count += 1
+        self.num_open_page -= 1
 
     def flush_all(self):
         self.global_lock.acquire()

@@ -15,6 +15,8 @@ from threading import Thread, Lock
 from index import Index
 from page import BasePage
 
+import time
+
 from config import *
 
 import pdb
@@ -211,7 +213,7 @@ class Table:
         if not MERGE_SINGLE_THREAD:
             for base_rid in base_rids:
                 while not self.rid_lock_directory[base_rid].grab_read():
-                    continue
+                    time.sleep(0)
 
         # References from old pids to new pids.
         base_page_copies = {}
