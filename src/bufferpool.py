@@ -4,7 +4,7 @@ import logging
 import mmap
 import pickle
 
-from multiprocessing import Lock
+from threading import Lock
 from random import choice
 from os import path
 
