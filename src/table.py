@@ -492,59 +492,53 @@ class Table:
 
     def select_lock(self, key, column, locked):
         rids = self.indexes[column].get(key)
-        # TODO: Should this return true of false??
-        if rids is None:
-            return False
         for rid in rids:
             if rid in locked:
                 continue
-            if self.rid_lock_directory[rid].grab_read():
-                locked[rid] = RWPins.READ
             else:
-                return False
-        return True
+                locked[rid] = RWPins.READ
+        return
 
     def delete_lock(self, key, locked):
-        return self.write_lock(key, locked)
+        self.write_lock(key, locked)
 
     def update_lock(self, key, locked):
-        return self.write_lock(key, locked)
+        self.write_lock(key, locked)
 
     def increment_lock(self, key, locked):
-        return self.write_lock(key, locked)
+        self.write_lock(key, locked)
 
     def write_lock(self, key, locked):
         rid = self.indexes[self.key_index].get(key)[0]
-        # If the rid is already locked try and upgrade it and fail if you cant.
-        if rid in locked:
-            if locked[rid] == RWPins.READ:
-                if self.rid_lock_directory[rid].upgrade_rw():
-                    locked[rid] = RWPins.WRITE
-                    return True
-                else:
-                    return False
-            else:
-                return True
-        if self.rid_lock_directory[rid].grab_write():
-            locked[rid] = RWPins.WRITE
-            return True
-        else:
-            return False
+        locked[rid] = RWPins.WRITE
 
     def sum_lock(self, start_range, end_range, aggregate_column, locked):
         for i in range(start_range, end_range + 1):
-            if not self.select_lock(i, aggregate_column, locked):
-                return False
+            self.select_lock(i, aggregate_column, locked)
+        return
+
+    def grab_locks(self, locks):
+        locked = {}
+        for rid, pin_type in locks.items():
+            if pin_type == RWPins.READ:
+                if not self.rid_lock_directory[rid].grab_read():
+                    self.release_locks(locked)
+                    return False
+            elif pin_type == RWPins.WRITE:
+                if not self.rid_lock_directory[rid].grab_write():
+                    self.release_locks(locked)
+                    return False
+            locked[rid] = pin_type
         return True
 
     def release_locks(self, locks):
-        for rid, type in locks.items():
-            if type == RWPins.READ:
+        for rid, pin_type in locks.items():
+            if pin_type == RWPins.READ:
                 self.rid_lock_directory[rid].release_read()
-            elif type == RWPins.WRITE:
+            elif pin_type == RWPins.WRITE:
                 self.rid_lock_directory[rid].release_write()
             else:
-                raise ValueError('{} not a valid lock type'.format(lock_type))
+                raise ValueError('{} not a valid lock type'.format(pin_type))
 
     def dump(self):
         full_tail_pages = list(self.full_tail_pages.queue)
