@@ -36,6 +36,11 @@ class Transaction:
             elif query.__name__ == "update":
                 # new_args = args.append(locked_rids)
                 acquired = query.__self__.table.update_lock(args[0], locked_rids)
+            elif query.__name__ == "sum":
+                acquired = query.__self__.table.sum_lock(args[0], args[1], args[2], locked_rids)
+            elif query.__name__ == "insert":
+                # Should not need to lock anything for any locks
+                pass
             else:
                 print("NONE WERE CALLED")
                 print(query.__name__ )
