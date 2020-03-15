@@ -193,8 +193,8 @@ class BufferPool:
         self.page_pid_in_mem.remove(pid)
         # page_rep.pin_lock.acquire()
 
-        if page_rep.pins > 0:
-            raise ValueError('Cannot flush a page that is pinned')
+        #if page_rep.pins > 0:
+        #    raise ValueError('Cannot flush a page that is pinned')
 
         # TODO should change get to not add a pin
         page = page_rep.page
