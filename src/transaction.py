@@ -45,7 +45,7 @@ class Transaction:
                 print("NONE WERE CALLED")
                 print(query.__name__ )
         if not self.queries[0][0].__self__.table.grab_locks(rids_to_lock):
-            self.abort()
+            return self.abort()
         for query, args in self.queries:
             # print(query.__name__)
             query(*args)
